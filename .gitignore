@@ -1,0 +1,18 @@
+# Base de datos y respaldos
+*.db
+backup_*.db
+infomira_censo.db
+
+# Entorno virtual
+env/
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Sistema
+.DS_Store
+Thumbs.db

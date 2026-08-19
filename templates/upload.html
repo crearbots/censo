@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subir listado - InfoMIRA Censo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <header class="bg-blue-800 text-white shadow">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold">InfoMIRA Censo</h1>
+                <p class="text-blue-200 text-sm">Comunidad de Carvajal</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-blue-100">{{ user }}</span>
+                <a href="/logout" class="text-sm bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded transition">
+                    Cerrar sesión
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto px-4 py-8">
+        <div class="mb-6">
+            <a href="/dashboard" class="text-blue-600 hover:underline text-sm">← Volver al Dashboard</a>
+            <h2 class="text-2xl font-semibold text-gray-800 mt-2">Subir nuevo listado</h2>
+            <p class="text-gray-600 text-sm">Sube un archivo Excel con las columnas: Nombre, Celular, Estado</p>
+        </div>
+
+        {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 text-sm">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <form method="post" action="/upload" enctype="multipart/form-data" class="space-y-6">
+                <div>
+                    <label for="fuente" class="block text-sm font-medium text-gray-700 mb-1">
+                        Fuente del listado *
+                    </label>
+                    <select id="fuente" name="fuente" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecciona una fuente...</option>
+                        {% for f in fuentes %}
+                        <option value="{{ f }}">{{ f }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label for="fecha_listado" class="block text-sm font-medium text-gray-700 mb-1">
+                        Fecha del listado *
+                    </label>
+                    <input type="date" id="fecha_listado" name="fecha_listado" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500 mt-1">Fecha real en que se realizó el censo o la reunión.</p>
+                </div>
+
+                <div>
+                    <label for="archivo" class="block text-sm font-medium text-gray-700 mb-1">
+                        Archivo Excel (.xlsx) *
+                    </label>
+                    <input type="file" id="archivo" name="archivo" accept=".xlsx,.xls" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500 mt-1">Máximo 5 MB. Solo se procesarán registros con Estado = Instalada.</p>
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="submit"
+                            class="bg-blue-600 text-white px-5 py-2.5 rounded-md hover:bg-blue-700 transition font-medium">
+                        Procesar archivo
+                    </button>
+                    <a href="/dashboard"
+                       class="bg-gray-200 text-gray-700 px-5 py-2.5 rounded-md hover:bg-gray-300 transition">
+                        Cancelar
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+            <p class="font-medium mb-1">Formato esperado del Excel:</p>
+            <ul class="list-disc list-inside space-y-1 text-blue-700">
+                <li><strong>Nombre</strong> — Nombre de la persona</li>
+                <li><strong>Celular</strong> — Número de 10 dígitos (ej: 3115712505)</li>
+                <li><strong>Estado</strong> — Debe decir exactamente "Instalada"</li>
+            </ul>
+        </div>
+    </main>
+</body>
+</html>

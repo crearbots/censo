@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultado del procesamiento - InfoMIRA Censo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <header class="bg-blue-800 text-white shadow">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold">InfoMIRA Censo</h1>
+                <p class="text-blue-200 text-sm">Comunidad de Carvajal</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-blue-100">{{ user }}</span>
+                <a href="/logout" class="text-sm bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded transition">
+                    Cerrar sesión
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-2xl mx-auto px-4 py-8">
+        <div class="mb-6">
+            <h2 class="text-2xl font-semibold text-gray-800">Resultado del procesamiento</h2>
+            <p class="text-gray-600 text-sm mt-1">
+                Archivo: <strong>{{ nombre_archivo }}</strong> · Fuente: <strong>{{ fuente }}</strong>
+            </p>
+        </div>
+
+        {% if resumen.errores %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 text-sm">
+            <p class="font-medium mb-1">Se encontraron errores:</p>
+            <ul class="list-disc list-inside">
+                {% for err in resumen.errores %}
+                <li>{{ err }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-green-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-green-700">{{ resumen.nuevos }}</p>
+                    <p class="text-sm text-green-600">Registros nuevos</p>
+                </div>
+                <div class="bg-blue-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-blue-700">{{ resumen.actualizados }}</p>
+                    <p class="text-sm text-blue-600">Registros actualizados</p>
+                </div>
+                <div class="bg-orange-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-orange-600">{{ resumen.pendientes }}</p>
+                    <p class="text-sm text-orange-500">Pendientes de revisión</p>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-gray-600">{{ resumen.ignorados }}</p>
+                    <p class="text-sm text-gray-500">Ignorados (No instalada u otros)</p>
+                </div>
+            </div>
+
+            <p class="text-sm text-gray-500 mt-4 text-center">
+                Total de filas leídas: {{ resumen.total_filas }}
+            </p>
+        </div>
+
+        <div class="flex gap-3">
+            <a href="/dashboard"
+               class="bg-blue-600 text-white px-5 py-2.5 rounded-md hover:bg-blue-700 transition font-medium">
+                Ir al Dashboard
+            </a>
+            <a href="/upload"
+               class="bg-gray-200 text-gray-700 px-5 py-2.5 rounded-md hover:bg-gray-300 transition">
+                Subir otro archivo
+            </a>
+        </div>
+    </main>
+</body>
+</html>
