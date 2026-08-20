@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dato sede nacional - InfoMIRA Censo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+        <header class="bg-blue-800 text-white shadow sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto px-3 py-2.5 flex flex-wrap justify-between items-center gap-2">
+            <div class="min-w-0">
+                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">InfoMIRA Censo</a>
+                <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
+            </div>
+            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+                <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Inicio</a>
+                <a href="/upload" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Subir</a>
+                <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Personas</a>
+                <a href="/cargas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Cargas</a>
+                <a href="/informe" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Informe</a>
+                <a href="/dato-nacional" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Nacional</a>
+                <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-lg mx-auto px-3 sm:px-4 py-4 sm:py-8">
+        <div class="mb-6">
+            <a href="/dashboard" class="text-blue-600 hover:underline text-sm">← Volver al Dashboard</a>
+            <h2 class="text-2xl font-semibold text-gray-800 mt-2">Dato sede nacional</h2>
+            <p class="text-gray-600 text-sm">Registra el número de descargas que reporta el sistema oficial de la sede nacional.</p>
+        </div>
+
+        {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm">{{ error }}</div>
+        {% endif %}
+
+        {% if ultimo %}
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-900">
+            <p class="font-medium">Último dato registrado</p>
+            <p class="mt-1">{{ ultimo.total_reportado }} descargas · {{ ultimo.fecha_dato.strftime("%d/%m/%Y") }}</p>
+            {% if ultimo.nota %}<p class="text-blue-700 mt-1">{{ ultimo.nota }}</p>{% endif %}
+        </div>
+        {% endif %}
+
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <form method="post" action="/dato-nacional" class="space-y-4">
+                <div>
+                    <label for="fecha_dato" class="block text-sm font-medium text-gray-700 mb-1">Fecha del dato *</label>
+                    <input type="date" id="fecha_dato" name="fecha_dato" required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="total_reportado" class="block text-sm font-medium text-gray-700 mb-1">Total reportado por sede nacional *</label>
+                    <input type="number" id="total_reportado" name="total_reportado" min="0" required
+                           placeholder="Ej: 234"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="nota" class="block text-sm font-medium text-gray-700 mb-1">Nota (opcional)</label>
+                    <input type="text" id="nota" name="nota" maxlength="255"
+                           placeholder="Ej: Consulta del sábado en la plataforma nacional"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="submit" class="bg-blue-600 text-white px-5 py-2.5 rounded-md hover:bg-blue-700 transition font-medium">
+                        Guardar dato
+                    </button>
+                    <a href="/dashboard" class="bg-gray-200 text-gray-700 px-5 py-2.5 rounded-md hover:bg-gray-300 transition">Cancelar</a>
+                </div>
+            </form>
+        </div>
+
+        {% if historial %}
+        <div class="bg-white rounded-lg shadow p-4">
+            <h3 class="text-sm font-medium text-gray-700 mb-3">Historial reciente</h3>
+            <ul class="text-sm text-gray-600 space-y-2">
+                {% for h in historial %}
+                <li class="flex justify-between border-b border-gray-100 pb-2">
+                    <span>{{ h.fecha_dato.strftime("%d/%m/%Y") }}</span>
+                    <span class="font-medium">{{ h.total_reportado }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </main>
+</body>
+</html>

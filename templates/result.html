@@ -7,22 +7,25 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
-    <header class="bg-blue-800 text-white shadow">
-        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-            <div>
-                <h1 class="text-xl font-bold">InfoMIRA Censo</h1>
-                <p class="text-blue-200 text-sm">Comunidad de Carvajal</p>
+        <header class="bg-blue-800 text-white shadow sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto px-3 py-2.5 flex flex-wrap justify-between items-center gap-2">
+            <div class="min-w-0">
+                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">InfoMIRA Censo</a>
+                <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
-            <div class="flex items-center gap-4">
-                <span class="text-sm text-blue-100">{{ user }}</span>
-                <a href="/logout" class="text-sm bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded transition">
-                    Cerrar sesión
-                </a>
-            </div>
+            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+                <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Inicio</a>
+                <a href="/upload" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Subir</a>
+                <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Personas</a>
+                <a href="/cargas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Cargas</a>
+                <a href="/informe" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Informe</a>
+                <a href="/dato-nacional" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Nacional</a>
+                <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
+            </nav>
         </div>
     </header>
 
-    <main class="max-w-2xl mx-auto px-4 py-8">
+    <main class="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div class="mb-6">
             <h2 class="text-2xl font-semibold text-gray-800">Resultado del procesamiento</h2>
             <p class="text-gray-600 text-sm mt-1">
@@ -59,7 +62,33 @@
                     <p class="text-3xl font-bold text-gray-600">{{ resumen.ignorados }}</p>
                     <p class="text-sm text-gray-500">Ignorados (No instalada u otros)</p>
                 </div>
+                {% if resumen.duplicados_en_archivo is defined and resumen.duplicados_en_archivo > 0 %}
+                <div class="bg-yellow-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-yellow-700">{{ resumen.duplicados_en_archivo }}</p>
+                    <p class="text-sm text-yellow-600">Duplicados en archivo</p>
+                </div>
+                {% endif %}
+                {% if resumen.seguimiento_no_instalada is defined and resumen.seguimiento_no_instalada > 0 %}
+                <div class="bg-indigo-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-indigo-700">{{ resumen.seguimiento_no_instalada }}</p>
+                    <p class="text-sm text-indigo-600">No instalada (asignar motivo)</p>
+                </div>
+                {% endif %}
+                {% if resumen.no_revertidos is defined and resumen.no_revertidos > 0 %}
+                <div class="bg-gray-50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-gray-600">{{ resumen.no_revertidos }}</p>
+                    <p class="text-sm text-gray-500">Ya instaladas (no revertidas)</p>
+                </div>
+                {% endif %}
             </div>
+
+            {% if resumen.seguimiento_no_instalada is defined and resumen.seguimiento_no_instalada > 0 %}
+            <div class="mt-4 bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm text-indigo-900">
+                Hay personas en <strong>No instalada</strong> sin motivo.
+                <a href="/dashboard" class="underline font-medium">Asigna el motivo ahora en el Dashboard</a>
+                (sección «Seguimiento: No instalada»).
+            </div>
+            {% endif %}
 
             <p class="text-sm text-gray-500 mt-4 text-center">
                 Total de filas leídas: {{ resumen.total_filas }}

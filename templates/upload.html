@@ -7,22 +7,25 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
-    <header class="bg-blue-800 text-white shadow">
-        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-            <div>
-                <h1 class="text-xl font-bold">InfoMIRA Censo</h1>
-                <p class="text-blue-200 text-sm">Comunidad de Carvajal</p>
+        <header class="bg-blue-800 text-white shadow sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto px-3 py-2.5 flex flex-wrap justify-between items-center gap-2">
+            <div class="min-w-0">
+                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">InfoMIRA Censo</a>
+                <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
-            <div class="flex items-center gap-4">
-                <span class="text-sm text-blue-100">{{ user }}</span>
-                <a href="/logout" class="text-sm bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded transition">
-                    Cerrar sesión
-                </a>
-            </div>
+            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+                <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Inicio</a>
+                <a href="/upload" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Subir</a>
+                <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Personas</a>
+                <a href="/cargas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Cargas</a>
+                <a href="/informe" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Informe</a>
+                <a href="/dato-nacional" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Nacional</a>
+                <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
+            </nav>
         </div>
     </header>
 
-    <main class="max-w-2xl mx-auto px-4 py-8">
+    <main class="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div class="mb-6">
             <a href="/dashboard" class="text-blue-600 hover:underline text-sm">← Volver al Dashboard</a>
             <h2 class="text-2xl font-semibold text-gray-800 mt-2">Subir nuevo listado</h2>
@@ -57,6 +60,19 @@
                     <input type="date" id="fecha_listado" name="fecha_listado" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <p class="text-xs text-gray-500 mt-1">Fecha real en que se realizó el censo o la reunión.</p>
+                </div>
+
+                <div>
+                    <label for="cargado_por" class="block text-sm font-medium text-gray-700 mb-1">
+                        Equipo que carga *
+                    </label>
+                    <select id="cargado_por" name="cargado_por" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Selecciona el equipo...</option>
+                        {% for e in equipos %}
+                        <option value="{{ e }}">{{ e }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
 
                 <div>

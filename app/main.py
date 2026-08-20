@@ -11,9 +11,9 @@ import tempfile
 from pathlib import Path
 
 from .database import engine, get_db, Base
-from .models import Usuario, Persona, Carga
+from .models import Usuario, Persona, Carga, DatoNacional
 from .auth import create_default_user, authenticate_user, DEFAULT_USER
-from .processing import procesar_excel, FUENTES_VALIDAS
+from .processing import procesar_excel, FUENTES_VALIDAS, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
 
 # Ruta base del proyecto
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -48,6 +48,29 @@ templates = Jinja2Templates(env=jinja_env)
 
 @app.on_event("startup")
 def on_startup():
+    # Crear tablas nuevas si no existen
+    Base.metadata.create_all(bind=engine)
+    # Migración simple SQLite: columna cargado_por en cargas
+    try:
+        from sqlalchemy import text as sql_text
+        with engine.connect() as conn:
+            cols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(cargas)")).fetchall()]
+            if "cargado_por" not in cols:
+                conn.execute(sql_text("ALTER TABLE cargas ADD COLUMN cargado_por VARCHAR(100)"))
+                conn.commit()
+                print("Columna cargas.cargado_por agregada")
+            pcols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(personas)")).fetchall()]
+            if "motivo" not in pcols:
+                conn.execute(sql_text("ALTER TABLE personas ADD COLUMN motivo VARCHAR(100)"))
+                conn.commit()
+                print("Columna personas.motivo agregada")
+            if "motivo_detalle" not in pcols:
+                conn.execute(sql_text("ALTER TABLE personas ADD COLUMN motivo_detalle VARCHAR(255)"))
+                conn.commit()
+                print("Columna personas.motivo_detalle agregada")
+    except Exception as e:
+        print(f"Migración: {e}")
+
     db = next(get_db())
     create_default_user(db)
     db.close()
@@ -109,9 +132,19 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         Persona.estado == "Instalada"
     ).count()
 
-    pendientes = db.query(Persona).filter(
-        Persona.pendiente_revision == True
+    # Pendientes de celular (Instalada sin celular válido)
+    pendientes_celular = db.query(Persona).filter(
+        Persona.pendiente_revision == True,
+        Persona.estado == "Instalada",
     ).order_by(Persona.id.desc()).all()
+
+    # Seguimiento No instalada sin motivo asignado
+    seguimiento_no_instalada = db.query(Persona).filter(
+        Persona.estado == "No instalada",
+        (Persona.motivo.is_(None) | (Persona.motivo == "")),
+    ).order_by(Persona.id.desc()).all()
+
+    pendientes = pendientes_celular  # compat
 
     meta = 500
     porcentaje = round((total_instaladas / meta) * 100, 1) if meta > 0 else 0
@@ -155,6 +188,14 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
             labels.append(etiqueta)
             data.append(acumulado)
 
+    # Último dato de sede nacional
+    dato_nacional = db.query(DatoNacional).order_by(
+        DatoNacional.fecha_dato.desc(), DatoNacional.id.desc()
+    ).first()
+    diferencia_nacional = None
+    if dato_nacional:
+        diferencia_nacional = dato_nacional.total_reportado - total_instaladas
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
@@ -163,9 +204,13 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
             "total_instaladas": total_instaladas,
             "meta": meta,
             "porcentaje": porcentaje,
-            "pendientes": pendientes,
+            "pendientes": pendientes_celular,
+            "pendientes_celular": pendientes_celular,
+            "seguimiento_no_instalada": seguimiento_no_instalada,
             "chart_labels": labels,
             "chart_data": data,
+            "dato_nacional": dato_nacional,
+            "diferencia_nacional": diferencia_nacional,
         }
     )
 
@@ -184,6 +229,7 @@ async def upload_page(request: Request):
         {
             "user": user,
             "fuentes": FUENTES_VALIDAS,
+            "equipos": EQUIPOS_CARGA,
             "error": None
         }
     )
@@ -194,6 +240,7 @@ async def upload_submit(
     request: Request,
     fuente: str = Form(...),
     fecha_listado: str = Form(...),
+    cargado_por: str = Form(...),
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
@@ -205,13 +252,19 @@ async def upload_submit(
     if fuente not in FUENTES_VALIDAS:
         return templates.TemplateResponse(
             request, "upload.html",
-            {"user": user, "fuentes": FUENTES_VALIDAS, "error": "Fuente no válida."}
+            {"user": user, "fuentes": FUENTES_VALIDAS, "equipos": EQUIPOS_CARGA, "error": "Fuente no válida."}
+        )
+
+    if cargado_por not in EQUIPOS_CARGA:
+        return templates.TemplateResponse(
+            request, "upload.html",
+            {"user": user, "fuentes": FUENTES_VALIDAS, "equipos": EQUIPOS_CARGA, "error": "Equipo no válido."}
         )
 
     if not archivo.filename:
         return templates.TemplateResponse(
             request, "upload.html",
-            {"user": user, "fuentes": FUENTES_VALIDAS, "error": "Debes seleccionar un archivo."}
+            {"user": user, "fuentes": FUENTES_VALIDAS, "equipos": EQUIPOS_CARGA, "error": "Debes seleccionar un archivo."}
         )
 
     # Solo aceptar .xlsx
@@ -254,7 +307,8 @@ async def upload_submit(
             fuente=fuente,
             nombre_archivo=archivo.filename,
             fecha_listado=fecha_obj,
-            db=db
+            db=db,
+            cargado_por=cargado_por,
         )
 
     except Exception as e:
@@ -421,19 +475,37 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
         if fuente:
             desglose[fuente] = cantidad
 
+    # Dato sede nacional (si existe)
+    dato_nacional = db.query(DatoNacional).order_by(
+        DatoNacional.fecha_dato.desc(), DatoNacional.id.desc()
+    ).first()
+
     # Texto del informe
     lineas = [
         "📊 *Informe Semanal – Censo App InfoMIRA*",
         f"📅 Semana: {rango_semana}",
         "",
-        f"🎯 Meta del mes: {meta} personas censadas",
+        f"🎯 Meta del equipo (agosto): {meta} personas",
         "",
-        "👥 *Resultados acumulados:*",
+        "👥 *Resultados acumulados (nuestro registro):*",
         f"• Personas censadas: {total_instaladas}",
         f"• Avance de la meta: {porcentaje} %",
-        "",
-        "📥 *Fuentes de información de la semana:*"
     ]
+
+    if dato_nacional:
+        diff = dato_nacional.total_reportado - total_instaladas
+        fecha_nac = formato_fecha(dato_nacional.fecha_dato)
+        lineas.extend([
+            "",
+            "🏛️ *Dato sede nacional:*",
+            f"• Reportado al {fecha_nac}: {dato_nacional.total_reportado} descargas",
+            f"• Diferencia con nuestro registro: {diff:+d}",
+        ])
+
+    lineas.extend([
+        "",
+        "📥 *Fuentes de información de la semana:*",
+    ])
 
     if desglose:
         for fuente, cant in desglose.items():
@@ -456,32 +528,326 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
     )
 
 
-# ========== ETAPA 7: Respaldo simple ==========
 
-@app.get("/backup")
-async def crear_backup(request: Request):
-    """Descarga una copia de la base de datos."""
-    import shutil
-    from fastapi.responses import FileResponse
-    from datetime import datetime
+
+
+
+
+
+@app.post("/pendiente/{persona_id}/eliminar")
+async def eliminar_pendiente(
+    request: Request,
+    persona_id: int,
+    db: Session = Depends(get_db),
+):
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    persona = db.query(Persona).filter(
+        Persona.id == persona_id,
+        Persona.pendiente_revision == True,
+    ).first()
+
+    if persona:
+        db.delete(persona)
+        db.commit()
+
+    return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+
+
+@app.get("/seguimiento/{persona_id}", response_class=HTMLResponse)
+async def seguimiento_page(request: Request, persona_id: int, db: Session = Depends(get_db)):
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    persona = db.query(Persona).filter(
+        Persona.id == persona_id,
+        Persona.estado == "No instalada",
+    ).first()
+    if not persona:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    return templates.TemplateResponse(
+        request,
+        "seguimiento.html",
+        {
+            "user": user,
+            "persona": persona,
+            "motivos": MOTIVOS_NO_INSTALADA,
+            "error": None,
+        },
+    )
+
+
+@app.post("/seguimiento/{persona_id}", response_class=HTMLResponse)
+async def seguimiento_submit(
+    request: Request,
+    persona_id: int,
+    motivo: str = Form(...),
+    motivo_detalle: str = Form(""),
+    celular: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    from .processing import normalizar_celular, normalizar_nombre
 
     user = require_login(request)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    db_path = BASE_DIR / "infomira_censo.db"
+    persona = db.query(Persona).filter(
+        Persona.id == persona_id,
+        Persona.estado == "No instalada",
+    ).first()
+    if not persona:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+    if motivo not in MOTIVOS_NO_INSTALADA:
+        return templates.TemplateResponse(
+            request, "seguimiento.html",
+            {"user": user, "persona": persona, "motivos": MOTIVOS_NO_INSTALADA,
+             "error": "Motivo no válido."},
+        )
+
+    if motivo == "Otro" and not (motivo_detalle or "").strip():
+        return templates.TemplateResponse(
+            request, "seguimiento.html",
+            {"user": user, "persona": persona, "motivos": MOTIVOS_NO_INSTALADA,
+             "error": "Si eliges «Otro», describe la situación."},
+        )
+
+    cel = normalizar_celular(celular) if celular else None
+    if cel:
+        otro = db.query(Persona).filter(Persona.celular == cel, Persona.id != persona.id).first()
+        if otro:
+            return templates.TemplateResponse(
+                request, "seguimiento.html",
+                {"user": user, "persona": persona, "motivos": MOTIVOS_NO_INSTALADA,
+                 "error": f"Ese celular ya está registrado a: {otro.nombre}"},
+            )
+        persona.celular = cel
+        persona.pendiente_revision = False
+    elif persona.pendiente_revision:
+        # Sigue sin celular válido
+        pass
+
+    persona.motivo = motivo
+    persona.motivo_detalle = (motivo_detalle or "").strip() or None
+    db.commit()
+
+    return RedirectResponse(
+        url="/personas?estado=no_instalada",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+# ========== Dato oficial sede nacional ==========
+
+@app.get("/dato-nacional", response_class=HTMLResponse)
+async def dato_nacional_page(request: Request, db: Session = Depends(get_db)):
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    ultimo = db.query(DatoNacional).order_by(
+        DatoNacional.fecha_dato.desc(), DatoNacional.id.desc()
+    ).first()
+    historial = db.query(DatoNacional).order_by(
+        DatoNacional.fecha_dato.desc(), DatoNacional.id.desc()
+    ).limit(10).all()
+
+    return templates.TemplateResponse(
+        request,
+        "dato_nacional.html",
+        {"user": user, "ultimo": ultimo, "historial": historial, "error": None},
+    )
+
+
+@app.post("/dato-nacional", response_class=HTMLResponse)
+async def dato_nacional_submit(
+    request: Request,
+    fecha_dato: str = Form(...),
+    total_reportado: int = Form(...),
+    nota: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime as dt
+
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    try:
+        fecha = dt.strptime(fecha_dato, "%Y-%m-%d").date()
+    except ValueError:
+        ultimo = db.query(DatoNacional).order_by(DatoNacional.fecha_dato.desc()).first()
+        historial = db.query(DatoNacional).order_by(DatoNacional.fecha_dato.desc()).limit(10).all()
+        return templates.TemplateResponse(
+            request, "dato_nacional.html",
+            {"user": user, "ultimo": ultimo, "historial": historial, "error": "Fecha inválida."},
+        )
+
+    if total_reportado < 0:
+        ultimo = db.query(DatoNacional).order_by(DatoNacional.fecha_dato.desc()).first()
+        historial = db.query(DatoNacional).order_by(DatoNacional.fecha_dato.desc()).limit(10).all()
+        return templates.TemplateResponse(
+            request, "dato_nacional.html",
+            {"user": user, "ultimo": ultimo, "historial": historial, "error": "El total no puede ser negativo."},
+        )
+
+    registro = DatoNacional(
+        fecha_dato=fecha,
+        total_reportado=total_reportado,
+        nota=(nota or "").strip() or None,
+    )
+    db.add(registro)
+    db.commit()
+
+    return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+# ========== Listado consultable de personas ==========
+
+@app.get("/personas", response_class=HTMLResponse)
+async def listar_personas(
+    request: Request,
+    db: Session = Depends(get_db),
+    q: str = "",
+    fuente: str = "",
+    fecha_desde: str = "",
+    fecha_hasta: str = "",
+    estado: str = "",
+):
+    from datetime import datetime as dt
+
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    query = db.query(Persona)
+
+    # Filtro por estado
+    # Por defecto: Instalada (censados). "no_instalada" = seguimiento. "todos" = todo.
+    estado = (estado or "instalada").strip().lower()
+    if estado == "instalada":
+        query = query.filter(
+            Persona.estado == "Instalada",
+            Persona.pendiente_revision == False,
+        )
+    elif estado == "no_instalada":
+        query = query.filter(Persona.estado == "No instalada")
+    elif estado == "pendientes":
+        query = query.filter(Persona.pendiente_revision == True)
+    # estado == "todos" → sin filtro de estado
+
+    q = (q or "").strip()
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            (Persona.nombre.ilike(like)) | (Persona.celular.ilike(like))
+        )
+
+    if fuente and fuente in FUENTES_VALIDAS:
+        query = query.filter(Persona.fuente_ultima == fuente)
+
+    if fecha_desde:
+        try:
+            d = dt.strptime(fecha_desde, "%Y-%m-%d").date()
+            query = query.filter(Persona.fecha_listado >= d)
+        except ValueError:
+            pass
+    if fecha_hasta:
+        try:
+            d = dt.strptime(fecha_hasta, "%Y-%m-%d").date()
+            query = query.filter(Persona.fecha_listado <= d)
+        except ValueError:
+            pass
+
+    total_filtrado = query.count()
+    personas = query.order_by(Persona.nombre.asc()).limit(500).all()
+
+    total_instaladas = db.query(Persona).filter(
+        Persona.estado == "Instalada",
+        Persona.pendiente_revision == False,
+    ).count()
+    total_no_instalada = db.query(Persona).filter(
+        Persona.estado == "No instalada"
+    ).count()
+
+    return templates.TemplateResponse(
+        request,
+        "personas.html",
+        {
+            "user": user,
+            "personas": personas,
+            "total_filtrado": total_filtrado,
+            "total_instaladas": total_instaladas,
+            "total_no_instalada": total_no_instalada,
+            "fuentes": FUENTES_VALIDAS,
+            "filtros": {
+                "q": q,
+                "fuente": fuente,
+                "fecha_desde": fecha_desde,
+                "fecha_hasta": fecha_hasta,
+                "estado": estado,
+            },
+            "limitado": total_filtrado > 500,
+        },
+    )
+
+
+
+# ========== Historial de cargas ==========
+
+@app.get("/cargas", response_class=HTMLResponse)
+async def historial_cargas(request: Request, db: Session = Depends(get_db)):
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    cargas = db.query(Carga).order_by(Carga.fecha_carga.desc()).limit(100).all()
+
+    return templates.TemplateResponse(
+        request,
+        "cargas.html",
+        {
+            "user": user,
+            "cargas": cargas,
+        },
+    )
+
+# ========== ETAPA 7: Respaldo simple ==========
+
+@app.get("/backup")
+async def crear_backup(request: Request):
+    """Descarga una copia de la base de datos (usa DATABASE_PATH en producción)."""
+    import shutil
+    import tempfile
+    from fastapi.responses import FileResponse
+    from datetime import datetime
+    from .database import DB_PATH
+
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    db_path = Path(DB_PATH)
+    if not db_path.exists():
+        # Fallback a la ruta local por si no hay variable de entorno
+        db_path = BASE_DIR / "infomira_censo.db"
     if not db_path.exists():
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 
-    # Crear copia con fecha
     fecha = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_name = f"backup_infomira_{fecha}.db"
-    backup_path = BASE_DIR / backup_name
 
-    shutil.copy2(db_path, backup_path)
+    # Copia temporal (en producción /app puede no ser escribible de forma fiable)
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+    tmp.close()
+    shutil.copy2(db_path, tmp.name)
 
     return FileResponse(
-        path=str(backup_path),
+        path=tmp.name,
         filename=backup_name,
-        media_type="application/octet-stream"
+        media_type="application/octet-stream",
     )

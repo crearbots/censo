@@ -1,10 +1,13 @@
 """
-Lógica de procesamiento de archivos Excel según las reglas de negocio del MVP.
+Lógica de procesamiento de archivos Excel según las reglas de negocio.
+Versión robusta + seguimiento de No instalada.
 """
 import re
+import uuid
 from typing import Any, Dict, List
 from openpyxl import load_workbook
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 
 from .models import Persona, Carga
@@ -15,54 +18,55 @@ FUENTES_VALIDAS = [
     "Censo virtual"
 ]
 
+EQUIPOS_CARGA = [
+    "Coordinación",
+    "Gestión Documental",
+    "Formación y Capacitación",
+]
+
+MOTIVOS_NO_INSTALADA = [
+    "Código de verificación no llega",
+    "No trajo el celular",
+    "Almacenamiento lleno",
+    "Menor de edad (app solo para mayores)",
+    "Otro",
+]
+
 
 def normalizar_celular(valor: Any) -> str | None:
-    """
-    Normaliza el número de celular a exactamente 10 dígitos.
-    Elimina espacios, guiones, paréntesis y prefijos +57 / 57.
-    Retorna None si no se puede normalizar a 10 dígitos.
-    """
     if valor is None:
         return None
-
     texto = str(valor).strip()
     if not texto or texto.lower() in ("nan", "none", ""):
         return None
-
-    # Quitar todo lo que no sea dígito
     digitos = re.sub(r"\D", "", texto)
-
-    # Quitar prefijo 57 si queda con 12 dígitos
     if len(digitos) == 12 and digitos.startswith("57"):
         digitos = digitos[2:]
-
     if len(digitos) == 10:
         return digitos
-
     return None
 
 
 def normalizar_nombre(valor: Any) -> str:
-    """Normalización ligera de nombre."""
     if valor is None:
         return ""
     texto = str(valor).strip()
-    texto = re.sub(r"\s+", " ", texto)
-    return texto
+    return re.sub(r"\s+", " ", texto)
 
 
 def normalizar_estado(valor: Any) -> str | None:
-    """Solo acepta 'Instalada' (insensible a mayúsculas)."""
+    """Acepta Instalada o No instalada."""
     if valor is None:
         return None
     texto = str(valor).strip().lower()
     if texto in ("instalada", "instalado"):
         return "Instalada"
+    if texto in ("no instalada", "no instalado", "noinstalada"):
+        return "No instalada"
     return None
 
 
 def mapear_columnas(headers: List) -> Dict[str, int]:
-    """Mapea nombres de columna (insensible a mayúsculas) a índices."""
     mapping = {}
     for idx, h in enumerate(headers):
         if h is None:
@@ -77,23 +81,28 @@ def mapear_columnas(headers: List) -> Dict[str, int]:
     return mapping
 
 
+def _placeholder_celular() -> str:
+    return f"T{uuid.uuid4().hex[:14]}"
+
+
 def procesar_excel(
     file_path: str,
     fuente: str,
     nombre_archivo: str,
-    fecha_listado,  # date object
-    db: Session
+    fecha_listado,
+    db: Session,
+    cargado_por: str | None = None,
 ) -> Dict[str, Any]:
-    """
-    Procesa el archivo Excel según las reglas de negocio.
-    """
     resumen = {
         "nuevos": 0,
         "actualizados": 0,
         "pendientes": 0,
+        "seguimiento_no_instalada": 0,
         "ignorados": 0,
+        "duplicados_en_archivo": 0,
+        "no_revertidos": 0,  # ya eran Instalada y llegó No instalada
         "errores": [],
-        "total_filas": 0
+        "total_filas": 0,
     }
 
     try:
@@ -121,9 +130,10 @@ def procesar_excel(
     idx_nombre = col_map["nombre"]
     idx_celular = col_map["celular"]
     idx_estado = col_map["estado"]
-
     data_rows = rows[1:]
     resumen["total_filas"] = len(data_rows)
+
+    celulares_en_archivo: set[str] = set()
 
     for row_num, row in enumerate(data_rows, start=2):
         try:
@@ -135,8 +145,7 @@ def procesar_excel(
             celular = normalizar_celular(raw_celular)
             estado = normalizar_estado(raw_estado)
 
-            # Solo procesamos registros con Estado = Instalada
-            if estado != "Instalada":
+            if estado is None:
                 resumen["ignorados"] += 1
                 continue
 
@@ -144,59 +153,125 @@ def procesar_excel(
                 resumen["ignorados"] += 1
                 continue
 
-            # Celular inválido o vacío → Pendiente de revisión
-            if celular is None:
-                # Usamos un placeholder único temporal para respetar el constraint unique
-                placeholder = f"TMP{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
-                persona = Persona(
-                    celular=placeholder[:15],
-                    nombre=nombre,
-                    estado="Instalada",
-                    fuente_ultima=fuente,
-                    fecha_listado=fecha_listado,
-                    pendiente_revision=True
-                )
-                db.add(persona)
-                resumen["pendientes"] += 1
+            # Duplicado en el mismo archivo (solo si hay celular válido)
+            if celular and celular in celulares_en_archivo:
+                resumen["duplicados_en_archivo"] += 1
+                continue
+            if celular:
+                celulares_en_archivo.add(celular)
+
+            existente = None
+            if celular:
+                existente = db.query(Persona).filter(Persona.celular == celular).first()
+
+            # ---------- INSTALADA ----------
+            if estado == "Instalada":
+                if celular is None:
+                    persona = Persona(
+                        celular=_placeholder_celular(),
+                        nombre=nombre,
+                        estado="Instalada",
+                        fuente_ultima=fuente,
+                        fecha_listado=fecha_listado,
+                        pendiente_revision=True,
+                        motivo=None,
+                        motivo_detalle=None,
+                    )
+                    db.add(persona)
+                    resumen["pendientes"] += 1
+                    continue
+
+                if existente:
+                    existente.nombre = nombre
+                    existente.fuente_ultima = fuente
+                    existente.fecha_listado = fecha_listado
+                    existente.fecha_ultima_carga = datetime.utcnow()
+                    existente.estado = "Instalada"
+                    existente.pendiente_revision = False
+                    existente.motivo = None
+                    existente.motivo_detalle = None
+                    resumen["actualizados"] += 1
+                else:
+                    db.add(Persona(
+                        celular=celular,
+                        nombre=nombre,
+                        estado="Instalada",
+                        fuente_ultima=fuente,
+                        fecha_listado=fecha_listado,
+                        pendiente_revision=False,
+                    ))
+                    resumen["nuevos"] += 1
                 continue
 
-            # Buscar si ya existe por celular
-            existente = db.query(Persona).filter(Persona.celular == celular).first()
+            # ---------- NO INSTALADA ----------
+            if estado == "No instalada":
+                # Regla de oro: si ya es Instalada, no revertir
+                if existente and existente.estado == "Instalada" and not existente.pendiente_revision:
+                    resumen["no_revertidos"] += 1
+                    continue
 
-            if existente:
-                existente.nombre = nombre
-                existente.fuente_ultima = fuente
-                existente.fecha_listado = fecha_listado
-                existente.fecha_ultima_carga = datetime.utcnow()
-                existente.pendiente_revision = False
-                existente.estado = "Instalada"
-                resumen["actualizados"] += 1
-            else:
-                persona = Persona(
-                    celular=celular,
-                    nombre=nombre,
-                    estado="Instalada",
-                    fuente_ultima=fuente,
-                    fecha_listado=fecha_listado,
-                    pendiente_revision=False
-                )
-                db.add(persona)
-                resumen["nuevos"] += 1
+                if existente:
+                    # Actualizar seguimiento existente
+                    existente.nombre = nombre
+                    existente.fuente_ultima = fuente
+                    existente.fecha_listado = fecha_listado
+                    existente.fecha_ultima_carga = datetime.utcnow()
+                    existente.estado = "No instalada"
+                    # No borramos motivo si ya lo tenía
+                    if celular is None:
+                        existente.pendiente_revision = True
+                    else:
+                        existente.pendiente_revision = False
+                    resumen["actualizados"] += 1
+                    if not existente.motivo:
+                        resumen["seguimiento_no_instalada"] += 1
+                else:
+                    cel = celular if celular else _placeholder_celular()
+                    db.add(Persona(
+                        celular=cel,
+                        nombre=nombre,
+                        estado="No instalada",
+                        fuente_ultima=fuente,
+                        fecha_listado=fecha_listado,
+                        pendiente_revision=(celular is None),
+                        motivo=None,
+                        motivo_detalle=None,
+                    ))
+                    resumen["seguimiento_no_instalada"] += 1
+                continue
 
         except Exception as e:
             resumen["errores"].append(f"Fila {row_num}: {str(e)}")
 
-    # Registrar la carga
-    carga = Carga(
-        nombre_archivo=nombre_archivo,
-        fuente=fuente,
-        fecha_listado=fecha_listado,
-        total_registros=resumen["total_filas"],
-        nuevos=resumen["nuevos"],
-        actualizados=resumen["actualizados"],
-        pendientes=resumen["pendientes"]
-    )
-    db.add(carga)
-    db.commit()
+    try:
+        carga = Carga(
+            nombre_archivo=nombre_archivo,
+            fuente=fuente,
+            fecha_listado=fecha_listado,
+            total_registros=resumen["total_filas"],
+            nuevos=resumen["nuevos"],
+            actualizados=resumen["actualizados"],
+            pendientes=resumen["pendientes"],
+            cargado_por=cargado_por,
+        )
+        db.add(carga)
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        resumen["errores"].append(
+            "Error al guardar (posible duplicado). Ningún cambio de esta carga se aplicó. "
+            + str(getattr(e, "orig", e))
+        )
+        resumen["nuevos"] = 0
+        resumen["actualizados"] = 0
+        resumen["pendientes"] = 0
+        resumen["seguimiento_no_instalada"] = 0
+    except Exception as e:
+        db.rollback()
+        resumen["errores"].append(f"Error al guardar la carga: {str(e)}")
+        resumen["nuevos"] = 0
+        resumen["actualizados"] = 0
+        resumen["pendientes"] = 0
+        resumen["seguimiento_no_instalada"] = 0
 
     return resumen

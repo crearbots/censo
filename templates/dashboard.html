@@ -8,22 +8,25 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
     <!-- Header -->
-    <header class="bg-blue-800 text-white shadow">
-        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-            <div>
-                <h1 class="text-xl font-bold">InfoMIRA Censo</h1>
-                <p class="text-blue-200 text-sm">Comunidad de Carvajal</p>
+        <header class="bg-blue-800 text-white shadow sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto px-3 py-2.5 flex flex-wrap justify-between items-center gap-2">
+            <div class="min-w-0">
+                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">InfoMIRA Censo</a>
+                <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
-            <div class="flex items-center gap-4">
-                <span class="text-sm text-blue-100">{{ user }}</span>
-                <a href="/logout" class="text-sm bg-blue-700 hover:bg-blue-600 px-3 py-1 rounded transition">
-                    Cerrar sesión
-                </a>
-            </div>
+            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+                <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Inicio</a>
+                <a href="/upload" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Subir</a>
+                <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Personas</a>
+                <a href="/cargas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Cargas</a>
+                <a href="/informe" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Informe</a>
+                <a href="/dato-nacional" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Nacional</a>
+                <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
+            </nav>
         </div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-4 py-8">
+    <main class="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <!-- Título -->
         <div class="mb-6">
             <h2 class="text-2xl font-semibold text-gray-800">Dashboard</h2>
@@ -50,8 +53,35 @@
 
             <!-- Pendientes -->
             <div class="bg-white rounded-lg shadow p-6">
-                <p class="text-sm text-gray-500 mb-1">Pendientes de revisión</p>
-                <p class="text-4xl font-bold text-orange-500">{{ pendientes|length }}</p>
+                <p class="text-sm text-gray-500 mb-1">Pendientes de celular</p>
+                <p class="text-4xl font-bold text-orange-500">{{ pendientes_celular|length }}</p>
+            </div>
+        </div>
+
+        <!-- Dato sede nacional -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8 border-l-4 border-indigo-500">
+            <div class="flex flex-wrap justify-between items-start gap-4">
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">Dato sede nacional</p>
+                    {% if dato_nacional %}
+                    <p class="text-3xl font-bold text-indigo-700">{{ dato_nacional.total_reportado }}</p>
+                    <p class="text-sm text-gray-500 mt-1">
+                        Al {{ dato_nacional.fecha_dato.strftime("%d/%m/%Y") }}
+                        {% if diferencia_nacional is not none %}
+                        · Diferencia con nuestro registro:
+                        <span class="font-medium {% if diferencia_nacional > 0 %}text-amber-600{% elif diferencia_nacional < 0 %}text-green-600{% else %}text-gray-600{% endif %}">
+                            {% if diferencia_nacional > 0 %}+{% endif %}{{ diferencia_nacional }}
+                        </span>
+                        {% endif %}
+                    </p>
+                    {% else %}
+                    <p class="text-gray-400 text-sm mt-2">Aún no hay dato registrado de la sede nacional.</p>
+                    {% endif %}
+                </div>
+                <a href="/dato-nacional"
+                   class="text-sm bg-indigo-50 text-indigo-700 px-3 py-2 rounded-md hover:bg-indigo-100 transition font-medium">
+                    Actualizar dato nacional
+                </a>
             </div>
         </div>
 
@@ -69,10 +99,10 @@
             {% endif %}
         </div>
 
-        <!-- Lista de pendientes -->
-        <div class="bg-white rounded-lg shadow p-6 mb-8">
-            <h3 class="text-lg font-medium text-gray-800 mb-4">Personas pendientes de revisión</h3>
-            {% if pendientes %}
+        <!-- Pendientes de celular -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 class="text-lg font-medium text-gray-800 mb-4">Pendientes de celular (Instalada)</h3>
+            {% if pendientes_celular %}
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead class="bg-gray-50">
@@ -83,14 +113,18 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for p in pendientes %}
+                        {% for p in pendientes_celular %}
                         <tr class="border-t">
                             <td class="px-4 py-2">{{ p.nombre }}</td>
-                            <td class="px-4 py-2 text-gray-500">{% if p.celular and not p.celular.startswith("TMP") %}{{ p.celular }}{% else %}Sin celular{% endif %}</td>
+                            <td class="px-4 py-2 text-gray-500">Sin celular</td>
                             <td class="px-4 py-2">
-                                <a href="/pendiente/{{ p.id }}" class="text-blue-600 hover:underline text-sm font-medium">
-                                    Editar
-                                </a>
+                                <div class="flex items-center gap-3">
+                                    <a href="/pendiente/{{ p.id }}" class="text-blue-600 hover:underline text-sm font-medium">Editar</a>
+                                    <form method="post" action="/pendiente/{{ p.id }}/eliminar"
+                                          onsubmit="return confirm('¿Eliminar este pendiente? Esta acción no se puede deshacer.');">
+                                        <button type="submit" class="text-red-600 hover:underline text-sm font-medium">Eliminar</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -98,18 +132,56 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-gray-500 text-sm">No hay personas pendientes de revisión.</p>
+            <p class="text-gray-500 text-sm">No hay pendientes de celular.</p>
             {% endif %}
         </div>
 
-        <!-- Botones de acción -->
-        <div class="flex flex-wrap gap-4">
-            <a href="/upload" class="bg-blue-600 text-white px-5 py-2.5 rounded-md hover:bg-blue-700 transition font-medium">
-                Subir nuevo listado
+        <!-- Seguimiento No instalada -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h3 class="text-lg font-medium text-gray-800 mb-4">Seguimiento: No instalada (sin motivo)</h3>
+            {% if seguimiento_no_instalada %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-gray-600">Nombre</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Celular</th>
+                            <th class="px-4 py-2 text-left text-gray-600">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in seguimiento_no_instalada %}
+                        <tr class="border-t">
+                            <td class="px-4 py-2">{{ p.nombre }}</td>
+                            <td class="px-4 py-2 text-gray-500">{% if p.pendiente_revision %}Sin celular{% else %}{{ p.celular }}{% endif %}</td>
+                            <td class="px-4 py-2">
+                                <a href="/seguimiento/{{ p.id }}" class="text-indigo-600 hover:underline text-sm font-medium">Asignar motivo</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-xs text-gray-400 mt-3">Cuando asignes el motivo, dejarán esta lista. Consúltalas después en
+                <a href="/personas?estado=no_instalada" class="text-blue-600 hover:underline">Personas → filtro No instalada</a>.
+            </p>
+            {% else %}
+            <p class="text-gray-500 text-sm">No hay personas pendientes de motivo.</p>
+            <p class="text-xs text-gray-400 mt-2">Las No instalada con motivo ya asignado están en
+                <a href="/personas?estado=no_instalada" class="text-blue-600 hover:underline">Personas → No instalada</a>.
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- Acción principal -->
+        <div class="flex flex-col sm:flex-row flex-wrap gap-3 sm:items-center">
+            <a href="/upload" class="bg-blue-600 text-white px-5 py-2.5 rounded-md hover:bg-blue-700 transition font-medium text-center w-full sm:w-auto">
+                + Subir listado
             </a>
-            <a href="/informe" class="bg-green-600 text-white px-5 py-2.5 rounded-md hover:bg-green-700 transition font-medium">
-                Generar informe semanal
+            <a href="/informe" class="bg-white border border-gray-300 text-gray-700 px-5 py-2.5 rounded-md hover:bg-gray-50 transition font-medium">
+                Informe WhatsApp
             </a>
+            <p class="text-xs text-gray-400">El resto de opciones está en el menú superior.</p>
         </div>
     </main>
 

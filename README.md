@@ -2,99 +2,93 @@
 
 Sistema interno de seguimiento del censo de instalación de la App InfoMIRA.
 
+**Versión actual: `v1.1.0`** (agosto 2026)
+
+## Historial de versiones
+
+| Tag | Descripción |
+|-----|-------------|
+| `v1.0.0-mvp` | Primera versión estable en producción (~15 días) |
+| `v1.1.0` | Mejoras operativas: Excel robusto, Personas, dato nacional, historial, seguimiento No instalada, UX móvil |
+
+### Cambios en v1.1.0
+
+- Procesamiento de Excel tolerante a duplicados en el mismo archivo
+- Base de personas con filtros (Instalada / No instalada / pendientes)
+- Registro del dato oficial de la sede nacional y diferencia con el registro interno
+- Historial de cargas (archivo, fuente, equipo que carga, resultados)
+- Seguimiento de personas **No instalada** con motivos predefinidos
+- Regla de oro: no revertir a No instalada si ya estaba Instalada
+- Eliminar pendientes de celular erróneos
+- Campo “Equipo que carga” (Coordinación, Gestión Documental, Formación y Capacitación)
+- Backup usando `DATABASE_PATH` (producción en `/data`)
+- Menú unificado y mejor uso en celular
+- Meta visible del equipo: **500** (agosto)
+
 ## Requisitos
 
 - Python 3.10 o superior
 
-## Instalación
+## Instalación local
 
 ```bash
-# 1. Crear entorno virtual
 python -m venv env
 
-# 2. Activar entorno virtual
 # Windows:
 env\Scripts\activate
 # Mac/Linux:
 source env/bin/activate
 
-# 3. Instalar dependencias
 pip install -r requirements.txt
-
-# 4. Ejecutar el servidor
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-## Acceso
+Abrir: http://127.0.0.1:8000/login
 
-Abrir en el navegador: http://127.0.0.1:8000/login
-
-**Credenciales por defecto:**
+Credenciales por defecto (cambiar en producción con variables de entorno):
 - Usuario: `gestion`
 - Contraseña: `infomira2026`
 
-> Cambia la contraseña en producción editando `app/auth.py`.
-
 ## Formato del Excel
 
-El archivo debe tener exactamente estas columnas (el orden y mayúsculas no importan):
+Columnas (orden y mayúsculas no importan):
 
 | Nombre | Celular | Estado |
 |--------|---------|--------|
 | María Pérez | 3115712505 | Instalada |
+| Juan Pérez | 3001234567 | No instalada |
 
-- Solo se cargan registros con **Estado = Instalada**
-- El celular debe tener 10 dígitos
+- **Instalada** → cuenta para la meta (si el celular es válido)
+- **No instalada** → seguimiento; el motivo se asigna en la aplicación
+- Celular: 10 dígitos
 
-## Funcionalidades del MVP
+## Variables de entorno (producción)
 
-- Login con usuario compartido
-- Dashboard con total, avance a la meta (500) y gráfica diaria
-- Carga de Excel + selección de fuente y fecha
-- Detección de duplicados por celular
-- Pendientes de revisión (edición manual)
-- Generación de informe semanal para WhatsApp
-
-## Notas
-
-- La base de datos (`infomira_censo.db`) se crea automáticamente
-- No subas este archivo a repositorios públicos (contiene datos personales)
+| Variable | Uso |
+|----------|-----|
+| `APP_USER` | Usuario de acceso |
+| `APP_PASSWORD` | Contraseña |
+| `SECRET_KEY` | Firma de sesiones (fija, no cambiar entre reinicios) |
+| `DATABASE_PATH` | Ruta del `.db` (en Railway: `/data/infomira_censo.db`) |
 
 ## Despliegue en Railway
 
-### 1. Crear cuenta y proyecto
-1. Entra a [railway.app](https://railway.app) y crea una cuenta
-2. New Project → Deploy from GitHub repo (o sube el código)
+1. Conectar el repositorio de GitHub al servicio.
+2. Variables de entorno (arriba).
+3. Volumen persistente con **Mount path: `/data`**.
+4. `DATABASE_PATH=/data/infomira_censo.db`
+5. Dominio público en Networking.
 
-### 2. Variables de entorno
-En la pestaña **Variables** del servicio agrega:
+Cada `git push` a la rama conectada dispara un nuevo deploy automáticamente.
 
-| Variable | Valor recomendado |
-|----------|-------------------|
-| `APP_USER` | `gestion` |
-| `APP_PASSWORD` | *(elige una contraseña segura)* |
-| `SECRET_KEY` | *(una cadena larga y aleatoria)* |
+## Notas
 
-Para generar un SECRET_KEY seguro puedes usar:
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
-```
+- La base de datos no debe subirse a GitHub (está en `.gitignore`).
+- Antes de cada deploy importante: descargar respaldo desde la app o desde el volumen en Railway.
+- Para volver a la versión anterior: redeploy del tag `v1.0.0-mvp` en Railway (y restaurar `.db` si hiciera falta).
 
-### 3. Volumen persistente (importante para SQLite)
-1. En el servicio → **Settings** → **Volumes**
-2. Add Volume
-3. Mount path: `/app`  (o la ruta donde se genera el .db)
-4. Esto evita que se pierdan los datos al reiniciar
+## Próximas mejoras (recomendación de proceso)
 
-> Nota: Si el volumen se monta en otra ruta, ajusta `app/database.py` para que apunte a esa ruta.
-
-### 4. Dominio
-En **Settings → Networking → Generate Domain** obtendrás una URL pública tipo:
-`https://infomira-censo-production.up.railway.app`
-
-### 5. Arranque
-Railway detectará el `Procfile` o el `railway.toml` y arrancará con:
-```
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-
+- Entregar de a un tema por deploy
+- Checklist de prueba tras cada despliegue
+- Tag + respaldo de BD antes de subir a producción
