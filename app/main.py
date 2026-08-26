@@ -132,6 +132,10 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         Persona.estado == "Instalada"
     ).count()
 
+    total_no_instalada = db.query(Persona).filter(
+        Persona.estado == "No instalada"
+    ).count()
+
     # Pendientes de celular (Instalada sin celular válido)
     pendientes_celular = db.query(Persona).filter(
         Persona.pendiente_revision == True,
@@ -147,7 +151,15 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     pendientes = pendientes_celular  # compat
 
     meta = 500
-    porcentaje = round((total_instaladas / meta) * 100, 1) if meta > 0 else 0
+
+    # Título de periodo automático (mes actual)
+    MESES_TITULO = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
+    }
+    ahora = datetime.now()
+    periodo_titulo = f"Resultados · {MESES_TITULO[ahora.month]} {ahora.year}"
 
     # === Datos para gráfica diaria ===
     MESES_ES = {
@@ -196,14 +208,48 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     if dato_nacional:
         diferencia_nacional = dato_nacional.total_reportado - total_instaladas
 
+    # Avance principal: sede nacional si existe; si no, registro interno
+    usa_dato_nacional = dato_nacional is not None
+    if usa_dato_nacional:
+        avance_principal = dato_nacional.total_reportado
+    else:
+        avance_principal = total_instaladas
+
+    porcentaje = round((avance_principal / meta) * 100, 1) if meta > 0 else 0
+    if porcentaje > 100:
+        porcentaje_barra = 100
+    else:
+        porcentaje_barra = porcentaje
+
+    # Color de barra según cercanía a la meta
+    if porcentaje >= 100:
+        barra_color = "bg-green-600"
+        barra_track = "bg-green-100"
+    elif porcentaje >= 70:
+        barra_color = "bg-green-500"
+        barra_track = "bg-green-50"
+    elif porcentaje >= 40:
+        barra_color = "bg-amber-400"
+        barra_track = "bg-amber-50"
+    else:
+        barra_color = "bg-red-500"
+        barra_track = "bg-red-50"
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "user": user,
             "total_instaladas": total_instaladas,
+            "total_no_instalada": total_no_instalada,
             "meta": meta,
             "porcentaje": porcentaje,
+            "porcentaje_barra": porcentaje_barra,
+            "avance_principal": avance_principal,
+            "usa_dato_nacional": usa_dato_nacional,
+            "barra_color": barra_color,
+            "barra_track": barra_track,
+            "periodo_titulo": periodo_titulo,
             "pendientes": pendientes_celular,
             "pendientes_celular": pendientes_celular,
             "seguimiento_no_instalada": seguimiento_no_instalada,
