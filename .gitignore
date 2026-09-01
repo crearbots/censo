@@ -1,9 +1,11 @@
-# Base de datos y respaldos
+# Datos
 *.db
 backup_*.db
 infomira_censo.db
+*.xlsx
+*.xls
 
-# Entorno virtual
+# Entorno
 env/
 venv/
 .venv/
@@ -12,8 +14,9 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+.pytest_cache/
 
 # Sistema
 .DS_Store
 Thumbs.db
-ejemplo_listado.xlsx

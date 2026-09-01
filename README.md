@@ -1,66 +1,57 @@
-# InfoMIRA Censo - Comunidad de Carvajal
+# InfoMIRA Censo
 
-Sistema interno de seguimiento del censo de instalación de la App InfoMIRA.
+Aplicación web interna para el censo de instalación de la App InfoMIRA en la comunidad de Carvajal.
 
-**Versión actual: `v1.1.0`** (agosto 2026)
+Acceso restringido (login). No es un sitio público.
 
-## Historial de versiones
+## Qué hace
 
-| Tag | Descripción |
-|-----|-------------|
-| `v1.0.0-mvp` | Primera versión estable en producción (~15 días) |
-| `v1.1.0` | Mejoras operativas: Excel robusto, Personas, dato nacional, historial, seguimiento No instalada, UX móvil |
-
-### Cambios en v1.1.0
-
-- Procesamiento de Excel tolerante a duplicados en el mismo archivo
-- Base de personas con filtros (Instalada / No instalada / pendientes)
-- Registro del dato oficial de la sede nacional y diferencia con el registro interno
-- Historial de cargas (archivo, fuente, equipo que carga, resultados)
-- Seguimiento de personas **No instalada** con motivos predefinidos
-- Regla de oro: no revertir a No instalada si ya estaba Instalada
-- Eliminar pendientes de celular erróneos
-- Campo “Equipo que carga” (Coordinación, Gestión Documental, Formación y Capacitación)
-- Backup usando `DATABASE_PATH` (producción en `/data`)
-- Menú unificado y mejor uso en celular
-- Meta visible del equipo: **500** (agosto)
+- Carga listados Excel y evita contar dos veces a la misma persona (identificador: celular).
+- Dashboard de avance (meta del equipo: 500), con el dato de sede nacional como métrica principal.
+- Consulta de personas, seguimiento de quienes no han instalado la App y historial de cargas.
+- Informe semanal listo para copiar a WhatsApp.
 
 ## Requisitos
 
 - Python 3.10 o superior
+- Git
 
-## Instalación local
+## Instalación local (Linux)
 
 ```bash
-python -m venv env
+git clone https://github.com/crearbots/censo.git
+cd censo
+git checkout master
 
-# Windows:
-env\Scripts\activate
-# Mac/Linux:
+python3 -m venv env
 source env/bin/activate
-
 pip install -r requirements.txt
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Abrir: http://127.0.0.1:8000/login
 
-Credenciales por defecto (cambiar en producción con variables de entorno):
-- Usuario: `gestion`
-- Contraseña: `infomira2026`
+Las credenciales se definen con variables de entorno (`APP_USER`, `APP_PASSWORD`). En local, si no las defines, la app usa valores de desarrollo.
+
+La base `infomira_censo.db` se crea sola. No la subas a GitHub.
 
 ## Formato del Excel
 
-Columnas (orden y mayúsculas no importan):
+Columnas (el orden y las mayúsculas no importan): **Nombre**, **Celular**, **Estado**.
 
-| Nombre | Celular | Estado |
-|--------|---------|--------|
-| María Pérez | 3115712505 | Instalada |
-| Juan Pérez | 3001234567 | No instalada |
+| Estado | Qué ocurre |
+|--------|------------|
+| Instalada | Entra al censo si el celular es válido (10 dígitos) |
+| No instalada | Queda en seguimiento; el motivo se asigna en la app |
 
-- **Instalada** → cuenta para la meta (si el celular es válido)
-- **No instalada** → seguimiento; el motivo se asigna en la aplicación
-- Celular: 10 dígitos
+Reglas importantes:
+
+- El celular es el identificador. Si ya existe, se actualiza; no se duplica.
+- Si la persona ya es Instalada, un listado posterior en “No instalada” no la revierte.
+- `fecha_listado` se guarda la primera vez y **no se pisa** al volver a subir el mismo listado.
+
+Al cargar hay que indicar: fuente, fecha del listado y equipo que carga.
 
 ## Variables de entorno (producción)
 
@@ -68,27 +59,30 @@ Columnas (orden y mayúsculas no importan):
 |----------|-----|
 | `APP_USER` | Usuario de acceso |
 | `APP_PASSWORD` | Contraseña |
-| `SECRET_KEY` | Firma de sesiones (fija, no cambiar entre reinicios) |
-| `DATABASE_PATH` | Ruta del `.db` (en Railway: `/data/infomira_censo.db`) |
+| `SECRET_KEY` | Firma de sesiones (fija entre reinicios) |
+| `DATABASE_PATH` | Ruta del archivo `.db` |
 
-## Despliegue en Railway
+En Railway el volumen va en `/data` y `DATABASE_PATH=/data/infomira_censo.db`.
 
-1. Conectar el repositorio de GitHub al servicio.
-2. Variables de entorno (arriba).
-3. Volumen persistente con **Mount path: `/data`**.
-4. `DATABASE_PATH=/data/infomira_censo.db`
-5. Dominio público en Networking.
+## Despliegue
 
-Cada `git push` a la rama conectada dispara un nuevo deploy automáticamente.
+Fuente de verdad: GitHub, rama **`master`**. Un push a `master` dispara el deploy en Railway.
 
-## Notas
+Antes de un deploy:
 
-- La base de datos no debe subirse a GitHub (está en `.gitignore`).
-- Antes de cada deploy importante: descargar respaldo desde la app o desde el volumen en Railway.
-- Para volver a la versión anterior: redeploy del tag `v1.0.0-mvp` en Railway (y restaurar `.db` si hiciera falta).
+1. Descargar respaldo de la base (producción).
+2. Probar en local.
+3. `git pull origin master` y luego push a `master`.
+4. Verificar el deploy y hacer login + una carga de prueba.
 
-## Próximas mejoras (recomendación de proceso)
+## Versiones
 
-- Entregar de a un tema por deploy
-- Checklist de prueba tras cada despliegue
-- Tag + respaldo de BD antes de subir a producción
+| Tag | Qué incluye |
+|-----|-------------|
+| `v1.0.0-mvp` | Primera versión en producción |
+| `v1.1.0` | Personas, dato nacional, historial, No instalada, Excel robusto |
+| `v1.2.0` | Dashboard de informe mensual; avance con dato nacional |
+
+## Privacidad
+
+No subir a GitHub bases `.db`, respaldos ni Excel con datos reales de la comunidad.

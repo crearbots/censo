@@ -159,7 +159,12 @@
                             <td class="px-4 py-2">{{ p.nombre }}</td>
                             <td class="px-4 py-2 text-gray-500">{% if p.pendiente_revision %}Sin celular{% else %}{{ p.celular }}{% endif %}</td>
                             <td class="px-4 py-2">
-                                <a href="/seguimiento/{{ p.id }}" class="text-indigo-600 hover:underline text-sm font-medium">Asignar motivo</a>
+                                <div class="flex flex-wrap gap-3">
+                                    <a href="/seguimiento/{{ p.id }}" class="text-indigo-600 hover:underline text-sm font-medium">Asignar motivo</a>
+                                    {% if not p.pendiente_revision and p.celular and p.celular|length == 10 %}
+                                    <a href="https://wa.me/57{{ p.celular }}" target="_blank" rel="noopener" class="text-green-700 hover:underline text-sm font-medium">Contactar</a>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -184,7 +189,7 @@
         </div>
     </main>
 
-    <footer class="text-center text-xs text-gray-400 py-6 px-3">
+        <footer class="text-center text-xs text-gray-400 py-6 px-3">
         InfoMIRA Censo
         · Hecho con amor
         <svg class="inline-block w-3.5 h-3.5 text-blue-500 align-text-bottom mx-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

@@ -184,7 +184,10 @@ def procesar_excel(
                 if existente:
                     existente.nombre = nombre
                     existente.fuente_ultima = fuente
-                    existente.fecha_listado = fecha_listado
+                    # No pisar fecha_listado si ya existe (trazabilidad de la gráfica).
+                    # Si pasa de No instalada / pendiente a Instalada y no tenía fecha, sí se asigna.
+                    if not existente.fecha_listado:
+                        existente.fecha_listado = fecha_listado
                     existente.fecha_ultima_carga = datetime.utcnow()
                     existente.estado = "Instalada"
                     existente.pendiente_revision = False
@@ -214,7 +217,8 @@ def procesar_excel(
                     # Actualizar seguimiento existente
                     existente.nombre = nombre
                     existente.fuente_ultima = fuente
-                    existente.fecha_listado = fecha_listado
+                    if not existente.fecha_listado:
+                        existente.fecha_listado = fecha_listado
                     existente.fecha_ultima_carga = datetime.utcnow()
                     existente.estado = "No instalada"
                     # No borramos motivo si ya lo tenía

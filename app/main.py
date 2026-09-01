@@ -504,21 +504,19 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
 
     rango_semana = f"{formato_fecha(lunes)} al {formato_fecha(domingo)}"
 
-    # Desglose por fuente de la semana
-    filas = db.query(
-        Persona.fuente_ultima,
-        sqlfunc.count(Persona.id)
-    ).filter(
-        Persona.pendiente_revision == False,
-        Persona.estado == "Instalada",
-        Persona.fecha_listado >= lunes,
-        Persona.fecha_listado <= domingo
-    ).group_by(Persona.fuente_ultima).all()
+    # Fuentes de la semana = cargas hechas lun-dom (solo personas NUEVAS)
+    cargas_semana = db.query(Carga).filter(
+        sqlfunc.date(Carga.fecha_carga) >= lunes,
+        sqlfunc.date(Carga.fecha_carga) <= domingo,
+    ).all()
 
     desglose = {}
-    for fuente, cantidad in filas:
-        if fuente:
-            desglose[fuente] = cantidad
+    for c in cargas_semana:
+        if not c.fuente:
+            continue
+        desglose[c.fuente] = desglose.get(c.fuente, 0) + (c.nuevos or 0)
+    # Quitar fuentes en cero para no ensuciar el mensaje
+    desglose = {f: n for f, n in desglose.items() if n > 0}
 
     # Dato sede nacional (si existe)
     dato_nacional = db.query(DatoNacional).order_by(
