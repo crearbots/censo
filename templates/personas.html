@@ -19,7 +19,7 @@
                 <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Personas</a>
                 <a href="/cargas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Cargas</a>
                 <a href="/informe" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Informe</a>
-                <a href="/dato-nacional" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Nacional</a>
+                <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener" class="px-2.5 py-1.5 rounded hover:bg-blue-700">Consulta oficial</a>
                 <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
             </nav>
         </div>
@@ -84,7 +84,44 @@
             </div>
 
             {% if personas %}
-            <div class="overflow-x-auto">
+            <!-- Móvil: tarjetas -->
+            <div class="md:hidden divide-y">
+                {% for p in personas %}
+                <div class="px-4 py-3">
+                    <p class="font-medium text-gray-800">{{ p.nombre }}</p>
+                    <p class="text-sm text-gray-600 mt-0.5">
+                        {% if p.pendiente_revision %}<span class="text-orange-500">Sin celular</span>{% else %}{{ p.celular }}{% endif %}
+                    </p>
+                    <p class="text-xs mt-1">
+                        {% if p.estado == "Instalada" %}
+                        <span class="text-green-700 bg-green-50 px-2 py-0.5 rounded">Instalada</span>
+                        {% else %}
+                        <span class="text-amber-700 bg-amber-50 px-2 py-0.5 rounded">No instalada</span>
+                        {% endif %}
+                        {% if p.estado == "No instalada" %}
+                            {% if p.motivo %}
+                            <span class="text-gray-500"> · {{ p.motivo }}{% if p.motivo_detalle %}: {{ p.motivo_detalle }}{% endif %}</span>
+                            {% else %}
+                            <span class="text-orange-500"> · Sin motivo</span>
+                            {% endif %}
+                        {% endif %}
+                    </p>
+                    <div class="flex flex-wrap gap-3 mt-2">
+                        <a href="/persona/{{ p.id }}" class="text-blue-600 text-sm font-medium">Editar</a>
+                        <form method="post" action="/persona/{{ p.id }}/eliminar"
+                              onsubmit="return confirm('¿Eliminar a {{ p.nombre }}?');">
+                            <button type="submit" class="text-red-600 text-sm font-medium">Eliminar</button>
+                        </form>
+                        {% if p.estado == "No instalada" and not p.pendiente_revision and p.celular and p.celular|length == 10 %}
+                        <a href="https://wa.me/57{{ p.celular }}" target="_blank" rel="noopener" class="text-green-700 text-sm font-medium">Contactar</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Escritorio: tabla -->
+            <div class="overflow-x-auto hidden md:block">
                 <table class="min-w-full text-sm">
                     <thead class="bg-gray-50 text-gray-600">
                         <tr>
@@ -95,6 +132,7 @@
                             <th class="px-4 py-2 text-left font-medium">Contacto</th>
                             <th class="px-4 py-2 text-left font-medium">Fuente</th>
                             <th class="px-4 py-2 text-left font-medium">Fecha</th>
+                            <th class="px-4 py-2 text-left font-medium">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -132,10 +170,20 @@
                             <td class="px-4 py-2 text-gray-600">
                                 {% if p.fecha_listado %}{{ p.fecha_listado.strftime("%d/%m/%Y") }}{% else %}—{% endif %}
                             </td>
+                            <td class="px-4 py-2">
+                                <div class="flex flex-wrap gap-2">
+                                    <a href="/persona/{{ p.id }}" class="text-blue-600 hover:underline text-xs font-medium">Editar</a>
+                                    <form method="post" action="/persona/{{ p.id }}/eliminar"
+                                          onsubmit="return confirm('¿Eliminar a {{ p.nombre }}? Si está Instalada dejará de contar en la meta.');">
+                                        <button type="submit" class="text-red-600 hover:underline text-xs font-medium">Eliminar</button>
+                                    </form>
+                                </div>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
             </div>
             {% else %}
             <p class="px-4 py-8 text-center text-gray-500 text-sm">No hay personas con estos filtros.</p>

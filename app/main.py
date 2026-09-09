@@ -519,11 +519,12 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
     desglose = {f: n for f, n in desglose.items() if n > 0}
 
     # Dato sede nacional (si existe)
-    dato_nacional = db.query(DatoNacional).order_by(
+    datos_nac = db.query(DatoNacional).order_by(
         DatoNacional.fecha_dato.desc(), DatoNacional.id.desc()
-    ).first()
+    ).all()
+    dato_nacional = datos_nac[0] if datos_nac else None
+    dato_nacional_prev = datos_nac[1] if len(datos_nac) > 1 else None
 
-    # Avance principal: sede nacional; si no hay dato, registro interno
     if dato_nacional:
         avance = dato_nacional.total_reportado
         etiqueta_avance = "sede nacional"
@@ -533,6 +534,24 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
 
     porcentaje = round((avance / meta) * 100, 1) if meta > 0 else 0
 
+    alerta = []
+    if dato_nacional and dato_nacional_prev:
+        actual = dato_nacional.total_reportado
+        anterior = dato_nacional_prev.total_reportado
+        if actual == anterior:
+            alerta = [
+                "",
+                "⚠️ *Atención: el dato de sede nacional no aumentó.*",
+                f"Sigue en {actual}. Se sugiere buscar nuevas estrategias que promuevan la instalación de la App.",
+            ]
+        elif actual < anterior:
+            delta = anterior - actual
+            alerta = [
+                "",
+                "⚠️ *Atención: el dato de sede nacional bajó.*",
+                f"Pasó de {anterior} a {actual} (−{delta}). Revisar posibles desinstalaciones.",
+            ]
+
     lineas = [
         "📊 *Informe Semanal – Censo App InfoMIRA*",
         f"📅 Semana: {rango_semana}",
@@ -540,9 +559,12 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
         f"🎯 *Avance del equipo ({etiqueta_avance})*",
         f"• {avance} / {meta} personas",
         f"• {porcentaje} %",
+    ]
+    lineas.extend(alerta)
+    lineas.extend([
         "",
         f"🗂 Registro interno: {total_instaladas} personas censadas",
-    ]
+    ])
 
     if desglose:
         lineas.extend(["", "📥 *Fuentes de la semana:*"])
@@ -743,6 +765,104 @@ async def dato_nacional_submit(
     return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 
 # ========== Listado consultable de personas ==========
+
+
+@app.get("/persona/{persona_id}", response_class=HTMLResponse)
+async def editar_persona_page(request: Request, persona_id: int, db: Session = Depends(get_db)):
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    persona = db.query(Persona).filter(Persona.id == persona_id).first()
+    if not persona:
+        return RedirectResponse(url="/personas", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(
+        request, "persona_editar.html",
+        {"user": user, "persona": persona, "error": None},
+    )
+
+
+@app.post("/persona/{persona_id}", response_class=HTMLResponse)
+async def editar_persona_submit(
+    request: Request,
+    persona_id: int,
+    nombre: str = Form(...),
+    celular: str = Form(""),
+    estado: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    from .processing import normalizar_celular, normalizar_nombre
+
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    persona = db.query(Persona).filter(Persona.id == persona_id).first()
+    if not persona:
+        return RedirectResponse(url="/personas", status_code=status.HTTP_303_SEE_OTHER)
+
+    nombre_limpio = normalizar_nombre(nombre)
+    if not nombre_limpio:
+        return templates.TemplateResponse(
+            request, "persona_editar.html",
+            {"user": user, "persona": persona, "error": "El nombre no puede estar vacío."},
+        )
+
+    if estado not in ("Instalada", "No instalada"):
+        return templates.TemplateResponse(
+            request, "persona_editar.html",
+            {"user": user, "persona": persona, "error": "Estado no válido."},
+        )
+
+    celular_limpio = normalizar_celular(celular) if celular else None
+
+    if estado == "Instalada" and not celular_limpio:
+        return templates.TemplateResponse(
+            request, "persona_editar.html",
+            {"user": user, "persona": persona,
+             "error": "Para marcar Instalada el celular debe tener 10 dígitos válidos."},
+        )
+
+    if celular_limpio:
+        otro = db.query(Persona).filter(
+            Persona.celular == celular_limpio,
+            Persona.id != persona.id,
+        ).first()
+        if otro:
+            return templates.TemplateResponse(
+                request, "persona_editar.html",
+                {"user": user, "persona": persona,
+                 "error": (
+                     f"Ese celular ya está en otro registro: {otro.nombre} "
+                     f"({otro.estado}). Elimina uno de los dos en Personas."
+                 )},
+            )
+        persona.celular = celular_limpio
+        persona.pendiente_revision = False
+    else:
+        persona.pendiente_revision = True
+
+    persona.nombre = nombre_limpio
+    persona.estado = estado
+    if estado == "Instalada":
+        persona.motivo = None
+        persona.motivo_detalle = None
+    db.commit()
+
+    destino = "/personas?estado=no_instalada" if estado == "No instalada" else "/personas?estado=instalada"
+    return RedirectResponse(url=destino, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/persona/{persona_id}/eliminar")
+async def eliminar_persona(request: Request, persona_id: int, db: Session = Depends(get_db)):
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    persona = db.query(Persona).filter(Persona.id == persona_id).first()
+    if persona:
+        db.delete(persona)
+        db.commit()
+    return RedirectResponse(url="/personas?estado=todos", status_code=status.HTTP_303_SEE_OTHER)
+
 
 @app.get("/personas", response_class=HTMLResponse)
 async def listar_personas(

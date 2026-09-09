@@ -19,7 +19,7 @@
                 <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Personas</a>
                 <a href="/cargas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Cargas</a>
                 <a href="/informe" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Informe</a>
-                <a href="/dato-nacional" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Nacional</a>
+                <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener" class="px-2.5 py-1.5 rounded hover:bg-blue-700">Consulta oficial</a>
                 <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
             </nav>
         </div>
@@ -34,7 +34,24 @@
 
         <div class="bg-white rounded-lg shadow overflow-hidden">
             {% if cargas %}
-            <div class="overflow-x-auto">
+            <div class="md:hidden divide-y">
+                {% for c in cargas %}
+                <div class="px-4 py-3">
+                    <p class="text-sm font-medium text-gray-800">{{ c.nombre_archivo }}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        {% if c.fecha_carga %}{{ c.fecha_carga.strftime("%d/%m/%Y %H:%M") }}{% else %}—{% endif %}
+                        · {{ c.fuente }}
+                    </p>
+                    <p class="text-xs text-gray-500">{{ c.cargado_por or "—" }}</p>
+                    <p class="text-sm mt-2">
+                        <span class="text-green-700 font-medium">{{ c.nuevos }} nuevas</span>
+                        <span class="text-gray-400"> · </span>
+                        <span class="text-blue-700">{{ c.actualizados }} act.</span>
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="overflow-x-auto hidden md:block">
                 <table class="min-w-full text-sm">
                     <thead class="bg-gray-50 text-gray-600">
                         <tr>
