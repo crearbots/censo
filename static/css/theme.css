@@ -1,0 +1,64 @@
+/* Tema: oscuro por defecto, claro opcional */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1220;
+  --bg-elev: #121a2b;
+  --bg-soft: #1a2438;
+  --border: #2a3650;
+  --text: #e8eef8;
+  --muted: #9aa8c0;
+  --accent: #5b8def;
+  --header: #0e1a33;
+}
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f4f6;
+  --bg-elev: #ffffff;
+  --bg-soft: #f8fafc;
+  --border: #e5e7eb;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --header: #1e3a8a;
+}
+html, body { background: var(--bg) !important; color: var(--text); }
+body { min-height: 100vh; }
+
+[data-theme="dark"] .bg-gray-100,
+[data-theme="dark"] .bg-gray-50 { background-color: var(--bg) !important; }
+[data-theme="dark"] .bg-white { background-color: var(--bg-elev) !important; }
+[data-theme="dark"] .bg-blue-800 { background-color: var(--header) !important; }
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-700 { color: var(--text) !important; }
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-gray-500,
+[data-theme="dark"] .text-gray-400 { color: var(--muted) !important; }
+[data-theme="dark"] .border,
+[data-theme="dark"] .border-gray-100,
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-gray-300 { border-color: var(--border) !important; }
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background-color: var(--bg-soft) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="dark"] .hover\:bg-gray-50:hover { background-color: var(--bg-soft) !important; }
+[data-theme="dark"] .bg-gray-200 { background-color: #334155 !important; color: var(--text) !important; }
+[data-theme="dark"] header { border-bottom: 1px solid var(--border); }
+[data-theme="dark"] .shadow,
+[data-theme="dark"] .shadow-md { box-shadow: 0 8px 24px rgba(0,0,0,.35) !important; }
+
+#theme-toggle {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.25);
+  color: inherit;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+[data-theme="light"] #theme-toggle { border-color: rgba(255,255,255,.35); }

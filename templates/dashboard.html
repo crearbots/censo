@@ -1,17 +1,20 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - InfoMIRA Censo</title>
+    <title>Dashboard - Censo App</title>
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <!-- Header -->
         <header class="bg-blue-800 text-white shadow sticky top-0 z-20">
-        <div class="max-w-6xl mx-auto px-3 py-2.5 flex flex-wrap justify-between items-center gap-2">
+        <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-2">
             <div class="min-w-0">
-                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">InfoMIRA Censo</a>
+                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
                 <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
             <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
@@ -21,16 +24,17 @@
                 <a href="/cargas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Cargas</a>
                 <a href="/informe" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Informe</a>
                 <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener" class="px-2.5 py-1.5 rounded hover:bg-blue-700">Consulta oficial</a>
+                                <button type="button" id="theme-toggle" class="px-2.5 py-1.5">Modo claro</button>
                 <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
             </nav>
         </div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8">
         <!-- Título de periodo -->
         <div class="mb-6">
             <h2 class="text-2xl sm:text-3xl font-semibold text-gray-800">{{ periodo_titulo }}</h2>
-            <p class="text-gray-600 text-sm mt-1">Seguimiento del censo de instalación de la App InfoMIRA</p>
+            <p class="text-gray-600 text-sm mt-1">Seguimiento del censo de instalación de la App</p>
         </div>
 
         <!-- Héroe: avance principal -->
@@ -76,7 +80,7 @@
         </div>
 
         <!-- KPIs informativos -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mb-8">
             <a href="/personas?estado=no_instalada"
                class="bg-white rounded-xl shadow p-6 border border-gray-100 hover:border-amber-300 hover:shadow-md transition block">
                 <p class="text-sm text-gray-500 mb-1">Personas que no han instalado la App</p>
@@ -92,12 +96,25 @@
 
         <!-- Gráfica de evolución -->
         <div class="bg-white rounded-xl shadow p-6 mb-8 border border-gray-100">
-            <h3 class="text-lg font-medium text-gray-800 mb-1">Evolución diaria del censo (registro interno)</h3>
-            <p class="text-xs text-gray-400 mb-4">Acumulado según fechas de listado cargadas en el sistema</p>
+            <h3 class="text-lg font-medium text-gray-800 mb-1">Crecimiento · registro interno vs sede nacional</h3>
+            <p class="text-xs text-gray-400 mb-3">Las estrellas doradas marcan un salto grande. Tócalas para ver el detalle.</p>
+            <div class="flex flex-wrap gap-2 mb-3">
+                <button type="button" id="btnSerieInterno" class="px-3 py-1.5 rounded-full text-sm font-medium bg-blue-600 text-white">Registro interno</button>
+                <button type="button" id="btnSerieNacional" class="px-3 py-1.5 rounded-full text-sm font-medium bg-emerald-600 text-white">Sede nacional</button>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-4">
+                <button type="button" data-rango="30" class="btn-rango px-3 py-1.5 rounded-full text-xs font-medium bg-slate-700 text-white">Último mes</button>
+                <button type="button" data-rango="90" class="btn-rango px-3 py-1.5 rounded-full text-xs font-medium bg-slate-600 text-slate-200">Últimos 3 meses</button>
+                <button type="button" data-rango="all" class="btn-rango px-3 py-1.5 rounded-full text-xs font-medium bg-slate-600 text-slate-200">Todo</button>
+            </div>
+            {% if alerta_curva %}
+            <p class="text-sm text-amber-400 mb-3">{{ alerta_curva }}</p>
+            {% endif %}
             {% if chart_labels %}
-            <div class="h-64">
+            <div class="h-72 md:h-96">
                 <canvas id="chartEvolucion"></canvas>
             </div>
+            <div id="detalleDia" class="mt-4 text-sm hidden" style="color:var(--text)"></div>
             {% else %}
             <div class="h-48 flex items-center justify-center bg-gray-50 rounded border border-dashed border-gray-300">
                 <p class="text-gray-400 text-sm">Aún no hay datos. Sube el primer listado para ver la evolución.</p>
@@ -190,7 +207,7 @@
     </main>
 
         <footer class="text-center text-xs text-gray-400 py-6 px-3">
-        InfoMIRA Censo
+        Censo App
         · Hecho con amor
         <svg class="inline-block w-3.5 h-3.5 text-blue-500 align-text-bottom mx-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 21s-6.7-4.35-9.33-8.2C.8 10.2 1.1 6.8 3.4 5.05 5.3 3.6 7.85 4 9.2 5.55L12 8.6l2.8-3.05C16.15 4 18.7 3.6 20.6 5.05c2.3 1.75 2.6 5.15.73 7.75C18.7 16.65 12 21 12 21z"/>
@@ -202,36 +219,152 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         {% if chart_labels %}
+        const allLabels = {{ chart_labels | tojson }};
+        const allKeys = {{ chart_keys | default([]) | tojson }};
+        const allInt = {{ chart_data | tojson }};
+        const allNac = {{ chart_data_nacional | default([]) | tojson }};
+        const picosI = {{ picos_interno | default([]) | tojson }};
+        const picosN = {{ picos_nacional | default([]) | tojson }};
+        const detalle = {{ detalle_dias | default({}) | tojson }};
         const ctx = document.getElementById('chartEvolucion');
         if (ctx) {
-            new Chart(ctx, {
+            function sliceRango(dias) {
+                if (dias === 'all' || !allKeys.length) {
+                    return { labels: allLabels, keys: allKeys, int: allInt, nac: allNac, pi: picosI, pn: picosN };
+                }
+                const n = parseInt(dias, 10);
+                const corte = new Date();
+                corte.setDate(corte.getDate() - n);
+                const out = { labels: [], keys: [], int: [], nac: [], pi: [], pn: [] };
+                allKeys.forEach((k, i) => {
+                    if (new Date(k) >= corte) {
+                        out.labels.push(allLabels[i]);
+                        out.keys.push(k);
+                        out.int.push(allInt[i]);
+                        out.nac.push(allNac[i]);
+                        out.pi.push(picosI[i]);
+                        out.pn.push(picosN[i]);
+                    }
+                });
+                return out;
+            }
+            function styles(picos) {
+                return {
+                    radius: picos.map(p => p ? 11 : 3),
+                    style: picos.map(p => p ? 'star' : 'circle'),
+                };
+            }
+            let rango = '30';
+            let sl = sliceRango(rango);
+            let si = styles(sl.pi);
+            let sn = styles(sl.pn);
+            const chartCenso = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: {{ chart_labels | tojson }},
+                    labels: sl.labels,
                     datasets: [{
-                        label: 'Personas instaladas (acumulado)',
-                        data: {{ chart_data | tojson }},
-                        borderColor: 'rgb(37, 99, 235)',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 4,
-                        pointBackgroundColor: 'rgb(37, 99, 235)'
+                        label: 'Registro interno',
+                        data: sl.int,
+                        borderColor: 'rgb(96, 165, 250)',
+                        fill: false,
+                        tension: 0.25,
+                        pointRadius: si.radius,
+                        pointHoverRadius: si.radius.map(r => r + 3),
+                        pointStyle: si.style,
+                        pointBackgroundColor: sl.pi.map(p => p ? '#fbbf24' : 'rgb(96, 165, 250)'),
+                        pointBorderColor: sl.pi.map(p => p ? '#f59e0b' : 'rgb(96, 165, 250)'),
+                        pointBorderWidth: sl.pi.map(p => p ? 2 : 1)
+                    }, {
+                        label: 'Sede nacional',
+                        data: sl.nac,
+                        borderColor: 'rgb(52, 211, 153)',
+                        fill: false,
+                        tension: 0.2,
+                        spanGaps: true,
+                        pointRadius: sn.radius,
+                        pointHoverRadius: sn.radius.map(r => r + 3),
+                        pointStyle: sn.style,
+                        pointBackgroundColor: sl.pn.map(p => p ? '#fbbf24' : 'rgb(52, 211, 153)'),
+                        pointBorderColor: sl.pn.map(p => p ? '#f59e0b' : 'rgb(52, 211, 153)'),
+                        pointBorderWidth: sl.pn.map(p => p ? 2 : 1)
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { precision: 0 }
+                    onClick: (evt, els) => {
+                        if (!els.length) return;
+                        const i = els[0].index;
+                        const key = sl.keys[i];
+                        const d = detalle[key] || {};
+                        const box = document.getElementById('detalleDia');
+                        if (!box) return;
+                        let html = '<p class="font-medium mb-1" style="color:var(--text)">Día ' + sl.labels[i] + '</p>';
+                        html += '<p>Registro interno: <strong>' + (d.nuevas_internas || 0) + ' nuevas</strong></p>';
+                        if (d.cargas && d.cargas.length) {
+                            d.cargas.forEach(c => {
+                                html += '<p class="mt-1">' + (c.archivo || '') + ' · ' + (c.fuente || '') + ' · ' + (c.nuevos || 0) + ' nuevas</p>';
+                            });
+                        } else if ((d.nuevas_internas || 0) === 0) {
+                            html += '<p class="text-xs mt-1">Sin listados con esa fecha de listado.</p>';
                         }
+                        if (d.nacional != null) {
+                            html += '<p class="mt-2">Sede nacional: <strong>' + d.nacional + '</strong>';
+                            if (d.nacional_delta) html += ' (' + (d.nacional_delta > 0 ? '+' : '') + d.nacional_delta + ')';
+                            html += '</p>';
+                            if (d.nota) html += '<p class="italic mt-1">' + d.nota + '</p>';
+                        }
+                        box.innerHTML = html;
+                        box.classList.remove('hidden');
                     },
-                    plugins: {
-                        legend: { display: true, position: 'top' }
-                    }
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                    plugins: { legend: { display: false } }
                 }
+            });
+            function aplicarRango(dias) {
+                rango = dias;
+                sl = sliceRango(dias);
+                si = styles(sl.pi);
+                sn = styles(sl.pn);
+                chartCenso.data.labels = sl.labels;
+                chartCenso.data.datasets[0].data = sl.int;
+                chartCenso.data.datasets[0].pointRadius = si.radius;
+                chartCenso.data.datasets[0].pointHoverRadius = si.radius.map(r => r + 3);
+                chartCenso.data.datasets[0].pointStyle = si.style;
+                chartCenso.data.datasets[0].pointBackgroundColor = sl.pi.map(p => p ? '#fbbf24' : 'rgb(96, 165, 250)');
+                chartCenso.data.datasets[0].pointBorderColor = sl.pi.map(p => p ? '#f59e0b' : 'rgb(96, 165, 250)');
+                chartCenso.data.datasets[1].data = sl.nac;
+                chartCenso.data.datasets[1].pointRadius = sn.radius;
+                chartCenso.data.datasets[1].pointHoverRadius = sn.radius.map(r => r + 3);
+                chartCenso.data.datasets[1].pointStyle = sn.style;
+                chartCenso.data.datasets[1].pointBackgroundColor = sl.pn.map(p => p ? '#fbbf24' : 'rgb(52, 211, 153)');
+                chartCenso.data.datasets[1].pointBorderColor = sl.pn.map(p => p ? '#f59e0b' : 'rgb(52, 211, 153)');
+                chartCenso.update();
+                document.querySelectorAll('.btn-rango').forEach(b => {
+                    const on = b.getAttribute('data-rango') === String(dias);
+                    b.className = 'btn-rango px-3 py-1.5 rounded-full text-xs font-medium ' + (on ? 'bg-slate-700 text-white' : 'bg-slate-600 text-slate-200');
+                });
+            }
+            document.querySelectorAll('.btn-rango').forEach(b => {
+                b.addEventListener('click', () => aplicarRango(b.getAttribute('data-rango')));
+            });
+            function syncBtns() {
+                const iOn = chartCenso.isDatasetVisible(0);
+                const nOn = chartCenso.isDatasetVisible(1);
+                const bi = document.getElementById('btnSerieInterno');
+                const bn = document.getElementById('btnSerieNacional');
+                if (bi) bi.className = 'px-3 py-1.5 rounded-full text-sm font-medium ' + (iOn ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300');
+                if (bn) bn.className = 'px-3 py-1.5 rounded-full text-sm font-medium ' + (nOn ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300');
+            }
+            document.getElementById('btnSerieInterno')?.addEventListener('click', () => {
+                chartCenso.setDatasetVisibility(0, !chartCenso.isDatasetVisible(0));
+                chartCenso.update();
+                syncBtns();
+            });
+            document.getElementById('btnSerieNacional')?.addEventListener('click', () => {
+                chartCenso.setDatasetVisibility(1, !chartCenso.isDatasetVisible(1));
+                chartCenso.update();
+                syncBtns();
             });
         }
         {% endif %}

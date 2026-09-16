@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Crear tablas
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="InfoMIRA Censo - Carvajal", docs_url=None, redoc_url=None)
+app = FastAPI(title="Censo App", docs_url=None, redoc_url=None)
 
 # Middleware de sesión (clave fija desde variable de entorno en producción)
 SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
@@ -174,9 +174,10 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
     labels = []
     data = []
+    data_nacional = []
 
+    internos_por_dia = {}
     if personas:
-        # Agrupar por día usando fecha_listado (o fecha_primera_carga como respaldo)
         dias = defaultdict(int)
         for p in personas:
             if p.fecha_listado:
@@ -189,21 +190,99 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
             else:
                 continue
             dias[clave] += 1
+        acum = 0
+        for clave in sorted(dias.keys()):
+            acum += dias[clave]
+            internos_por_dia[clave] = acum
 
-        # Ordenar días y calcular acumulado
-        dias_ordenados = sorted(dias.keys())
-        acumulado = 0
-        for clave in dias_ordenados:
-            acumulado += dias[clave]
-            fecha_dia = datetime.strptime(clave, "%Y-%m-%d")
-            etiqueta = f"{fecha_dia.day:02d} {MESES_ES[fecha_dia.month]}"
-            labels.append(etiqueta)
-            data.append(acumulado)
+    todos_nac = db.query(DatoNacional).order_by(
+        DatoNacional.fecha_dato.asc(), DatoNacional.id.asc()
+    ).all()
+    nacional_por_dia = {}
+    for d in todos_nac:
+        if d.fecha_dato:
+            nacional_por_dia[d.fecha_dato.strftime("%Y-%m-%d")] = d.total_reportado
 
-    # Último dato de sede nacional
-    dato_nacional = db.query(DatoNacional).order_by(
-        DatoNacional.fecha_dato.desc(), DatoNacional.id.desc()
-    ).first()
+    fechas = sorted(set(internos_por_dia) | set(nacional_por_dia))
+    last_int = 0
+    last_nac = None
+    chart_keys = []
+    incrementos_int = []
+    incrementos_nac = []
+    prev_int = 0
+    prev_nac_val = None
+    for clave in fechas:
+        if clave in internos_por_dia:
+            last_int = internos_por_dia[clave]
+        if clave in nacional_por_dia:
+            last_nac = nacional_por_dia[clave]
+        fecha_dia = datetime.strptime(clave, "%Y-%m-%d")
+        labels.append(f"{fecha_dia.day:02d} {MESES_ES[fecha_dia.month]}")
+        data.append(last_int)
+        data_nacional.append(last_nac)
+        chart_keys.append(clave)
+        incrementos_int.append(last_int - prev_int)
+        if last_nac is None or prev_nac_val is None:
+            incrementos_nac.append(0)
+        else:
+            incrementos_nac.append(last_nac - prev_nac_val)
+        prev_int = last_int
+        if last_nac is not None:
+            prev_nac_val = last_nac
+
+    def _mediana(vals):
+        vals = sorted(v for v in vals if v > 0)
+        if not vals:
+            return 1
+        m = len(vals) // 2
+        return vals[m] if len(vals) % 2 else (vals[m - 1] + vals[m]) / 2
+
+    med_i = _mediana(incrementos_int)
+    med_n = _mediana(incrementos_nac)
+    picos_interno = [(inc >= 20 and inc >= 3 * med_i) for inc in incrementos_int]
+    picos_nacional = [(inc >= 20 and inc >= 3 * med_n) for inc in incrementos_nac]
+
+    from datetime import datetime as _dt
+    cargas_todas = db.query(Carga).all()
+    detalle_dias = {}
+    for i, clave in enumerate(chart_keys):
+        cargas_dia = [
+            {
+                "archivo": c.nombre_archivo,
+                "fuente": c.fuente,
+                "nuevos": c.nuevos or 0,
+                "equipo": c.cargado_por or "",
+            }
+            for c in cargas_todas
+            if c.fecha_listado and c.fecha_listado.strftime("%Y-%m-%d") == clave
+        ]
+        nota_nac = None
+        total_nac = nacional_por_dia.get(clave)
+        if total_nac is not None:
+            for d in todos_nac:
+                if d.fecha_dato and d.fecha_dato.strftime("%Y-%m-%d") == clave:
+                    nota_nac = d.nota
+        detalle_dias[clave] = {
+            "nuevas_internas": incrementos_int[i],
+            "cargas": cargas_dia,
+            "nacional": total_nac,
+            "nacional_delta": incrementos_nac[i],
+            "nota": nota_nac,
+            "pico_interno": picos_interno[i],
+            "pico_nacional": picos_nacional[i],
+        }
+
+    dato_nacional = todos_nac[-1] if todos_nac else None
+    dato_nacional_prev = todos_nac[-2] if len(todos_nac) > 1 else None
+    alerta_curva = None
+    if dato_nacional and dato_nacional_prev:
+        if dato_nacional.total_reportado == dato_nacional_prev.total_reportado:
+            alerta_curva = "Sin avance en el último reporte de sede nacional"
+        elif dato_nacional.total_reportado < dato_nacional_prev.total_reportado:
+            alerta_curva = "El último reporte de sede nacional bajó respecto al anterior"
+    if data and len(data) >= 2 and data[-1] == data[-2] and dato_nacional and data[-1] < dato_nacional.total_reportado:
+        extra = "El registro interno no está alcanzando el ritmo de sede nacional"
+        alerta_curva = f"{alerta_curva} · {extra}" if alerta_curva else extra
     diferencia_nacional = None
     if dato_nacional:
         diferencia_nacional = dato_nacional.total_reportado - total_instaladas
@@ -255,6 +334,12 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
             "seguimiento_no_instalada": seguimiento_no_instalada,
             "chart_labels": labels,
             "chart_data": data,
+            "chart_data_nacional": data_nacional,
+            "chart_keys": chart_keys,
+            "picos_interno": picos_interno,
+            "picos_nacional": picos_nacional,
+            "detalle_dias": detalle_dias,
+            "alerta_curva": alerta_curva,
             "dato_nacional": dato_nacional,
             "diferencia_nacional": diferencia_nacional,
         }
@@ -534,36 +619,54 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
 
     porcentaje = round((avance / meta) * 100, 1) if meta > 0 else 0
 
+    total_no_instalada = db.query(Persona).filter(
+        Persona.estado == "No instalada"
+    ).count()
+
     alerta = []
+    linea_delta = []
     if dato_nacional and dato_nacional_prev:
         actual = dato_nacional.total_reportado
         anterior = dato_nacional_prev.total_reportado
+        delta = actual - anterior
+        signo = f"+{delta}" if delta > 0 else str(delta)
+        linea_delta = [f"• Descargas nuevas de esta semana: {signo} ({anterior} → {actual})"]
         if actual == anterior:
+            racha = 1
+            for i in range(1, len(datos_nac)):
+                if datos_nac[i].total_reportado == actual:
+                    racha += 1
+                else:
+                    break
+            extra = ""
+            if racha >= 2:
+                extra = f" Van {racha} reportes seguidos sin aumento."
             alerta = [
                 "",
                 "⚠️ *Atención: el dato de sede nacional no aumentó.*",
-                f"Sigue en {actual}. Se sugiere buscar nuevas estrategias que promuevan la instalación de la App.",
+                f"Sigue en {actual}.{extra} Se sugiere buscar nuevas estrategias que promuevan la instalación de la App.",
             ]
         elif actual < anterior:
-            delta = anterior - actual
             alerta = [
                 "",
                 "⚠️ *Atención: el dato de sede nacional bajó.*",
-                f"Pasó de {anterior} a {actual} (−{delta}). Revisar posibles desinstalaciones.",
+                f"Pasó de {anterior} a {actual} ({delta}). Revisar posibles desinstalaciones.",
             ]
 
     lineas = [
-        "📊 *Informe Semanal – Censo App InfoMIRA*",
+        "📊 *Informe Semanal – Censo App*",
         f"📅 Semana: {rango_semana}",
         "",
         f"🎯 *Avance del equipo ({etiqueta_avance})*",
         f"• {avance} / {meta} personas",
         f"• {porcentaje} %",
     ]
+    lineas.extend(linea_delta)
     lineas.extend(alerta)
     lineas.extend([
         "",
         f"🗂 Registro interno: {total_instaladas} personas censadas",
+        f"⏳ Sin instalar la App: {total_no_instalada} personas",
     ])
 
     if desglose:

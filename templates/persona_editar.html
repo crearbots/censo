@@ -1,20 +1,24 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editar persona - InfoMIRA Censo</title>
+    <title>Editar persona - Censo App</title>
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <header class="bg-blue-800 text-white shadow sticky top-0 z-20">
-        <div class="max-w-6xl mx-auto px-3 py-2.5 flex flex-wrap justify-between items-center gap-2">
+        <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-2">
             <div class="min-w-0">
-                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">InfoMIRA Censo</a>
+                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
             </div>
             <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm">
                 <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700">Inicio</a>
                 <a href="/personas" class="px-2.5 py-1.5 rounded bg-blue-700">Personas</a>
+                                <button type="button" id="theme-toggle" class="px-2.5 py-1.5">Modo claro</button>
                 <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
             </nav>
         </div>

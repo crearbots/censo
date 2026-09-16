@@ -1,16 +1,19 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Informe semanal - InfoMIRA Censo</title>
+    <title>Informe semanal - Censo App</title>
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
         <header class="bg-blue-800 text-white shadow sticky top-0 z-20">
-        <div class="max-w-6xl mx-auto px-3 py-2.5 flex flex-wrap justify-between items-center gap-2">
+        <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-2">
             <div class="min-w-0">
-                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">InfoMIRA Censo</a>
+                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
                 <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
             <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
@@ -20,6 +23,7 @@
                 <a href="/cargas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Cargas</a>
                 <a href="/informe" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Informe</a>
                 <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener" class="px-2.5 py-1.5 rounded hover:bg-blue-700">Consulta oficial</a>
+                                <button type="button" id="theme-toggle" class="px-2.5 py-1.5">Modo claro</button>
                 <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
             </nav>
         </div>
@@ -76,7 +80,7 @@
         });
     </script>
     <footer class="text-center text-xs text-gray-400 py-6 px-3">
-        InfoMIRA Censo
+        Censo App
         · Hecho con amor
         <svg class="inline-block w-3.5 h-3.5 text-blue-500 align-text-bottom mx-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 21s-6.7-4.35-9.33-8.2C.8 10.2 1.1 6.8 3.4 5.05 5.3 3.6 7.85 4 9.2 5.55L12 8.6l2.8-3.05C16.15 4 18.7 3.6 20.6 5.05c2.3 1.75 2.6 5.15.73 7.75C18.7 16.65 12 21 12 21z"/>
