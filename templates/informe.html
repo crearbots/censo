@@ -16,7 +16,8 @@
                 <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
                 <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
-            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+                        <button type="button" id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="app-nav">Menú</button>
+            <nav id="app-nav" class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
                 <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Inicio</a>
                 <a href="/upload" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Subir</a>
                 <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Personas</a>
@@ -40,21 +41,18 @@
             <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
                 <h3 class="font-medium text-gray-800">Vista previa</h3>
                 <button id="btnCopiar"
-                        class="bg-green-600 text-white px-4 py-2.5 rounded-md hover:bg-green-700 transition text-sm font-medium w-full sm:w-auto text-center">
+                        class="btn-success w-full sm:w-auto">
                     📋 Copiar al portapapeles
                 </button>
             </div>
 
             <pre id="textoInforme"
-                 class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm whitespace-pre-wrap font-sans text-gray-800 leading-relaxed">{{ texto_informe }}</pre>
+                 class="informe-pre">{{ texto_informe }}</pre>
 
-            <p id="mensajeCopiado" class="text-green-600 text-sm mt-3 hidden">✓ Texto copiado. Ya lo puedes pegar en WhatsApp.</p>
+            <p id="mensajeCopiado" class="text-green-600 text-sm mt-3 hidden">¡Copiado!</p>
         </div>
 
-        <a href="/dashboard"
-           class="inline-block bg-gray-200 text-gray-700 px-5 py-2.5 rounded-md hover:bg-gray-300 transition">
-            Volver al Dashboard
-        </a>
+<a href="/dashboard" class="btn-ghost">← Volver al dashboard</a>
     </main>
 
     <script>
@@ -64,7 +62,7 @@
                 await navigator.clipboard.writeText(texto);
                 const msg = document.getElementById('mensajeCopiado');
                 msg.classList.remove('hidden');
-                setTimeout(() => msg.classList.add('hidden'), 3000);
+                setTimeout(() => msg.classList.add('hidden'), 2000);
             } catch (err) {
                 // Fallback para navegadores antiguos
                 const range = document.createRange();
@@ -75,7 +73,7 @@
                 window.getSelection().removeAllRanges();
                 const msg = document.getElementById('mensajeCopiado');
                 msg.classList.remove('hidden');
-                setTimeout(() => msg.classList.add('hidden'), 3000);
+                setTimeout(() => msg.classList.add('hidden'), 2000);
             }
         });
     </script>

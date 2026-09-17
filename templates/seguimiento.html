@@ -16,7 +16,8 @@
                 <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
                 <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
-            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+                        <button type="button" id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="app-nav">Menú</button>
+            <nav id="app-nav" class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
                 <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Inicio</a>
                 <a href="/upload" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Subir</a>
                 <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Personas</a>
@@ -29,7 +30,7 @@
         </div>
     </header>
 
-    <main class="max-w-lg mx-auto px-3 sm:px-4 py-4 sm:py-8">
+    <main class="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <div class="mb-6">
             <a href="/dashboard" class="text-blue-600 hover:underline text-sm">← Volver al Dashboard</a>
             <h2 class="text-2xl font-semibold text-gray-800 mt-2">Motivo: No instalada</h2>

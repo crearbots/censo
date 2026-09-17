@@ -16,7 +16,8 @@
                 <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
                 <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
-            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+                        <button type="button" id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="app-nav">Menú</button>
+            <nav id="app-nav" class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
                 <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Inicio</a>
                 <a href="/upload" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Subir</a>
                 <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Personas</a>
@@ -80,23 +81,26 @@
                 </div>
 
                 <div>
-                    <label for="archivo" class="block text-sm font-medium text-gray-700 mb-1">
-                        Archivo Excel (.xlsx) *
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Archivo Excel (.xlsx) *</label>
+                    <label for="archivo" id="dropzone" class="dropzone">
+                        <input type="file" id="archivo" name="archivo" accept=".xlsx,.xls" required class="sr-only">
+                        <span id="dropLabel">Arrastra el archivo aquí o toca para elegir</span>
                     </label>
-                    <input type="file" id="archivo" name="archivo" accept=".xlsx,.xls" required
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <p class="text-xs text-gray-500 mt-1">Máximo 5 MB. Solo se procesarán registros con Estado = Instalada.</p>
+                    <p id="fileError" class="text-sm mt-1" style="color:var(--danger)"></p>
+                    <p class="text-xs text-gray-500 mt-1">Máximo 5 MB · .xlsx</p>
+                    <ul id="colCheck" class="text-sm mt-3 space-y-1" style="color:var(--muted)">
+                        <li data-ok="ext">○ Archivo .xlsx</li>
+                        <li data-ok="size">○ Peso ≤ 5 MB</li>
+                        <li>○ Columnas en el Excel: Nombre, Celular, Estado (se validan al procesar)</li>
+                    </ul>
+                    <div id="uploadProgress" class="hidden mt-3 h-2 rounded-full overflow-hidden" style="background:var(--bg-soft)">
+                        <div class="h-2 w-1/2 animate-pulse" style="background:var(--primary)"></div>
+                    </div>
                 </div>
 
                 <div class="flex gap-3">
-                    <button type="submit"
-                            class="bg-blue-600 text-white px-5 py-2.5 rounded-md hover:bg-blue-700 transition font-medium">
-                        Procesar archivo
-                    </button>
-                    <a href="/dashboard"
-                       class="bg-gray-200 text-gray-700 px-5 py-2.5 rounded-md hover:bg-gray-300 transition">
-                        Cancelar
-                    </a>
+                    <button type="submit" id="btnProcesar" class="btn-primary">Procesar archivo</button>
+                    <a href="/dashboard" class="btn-ghost">Cancelar</a>
                 </div>
             </form>
         </div>
@@ -118,5 +122,52 @@
         </svg>
         · Gestión Documental
     </footer>
+<script>
+(function () {
+  var input = document.getElementById("archivo");
+  var zone = document.getElementById("dropzone");
+  var label = document.getElementById("dropLabel");
+  var err = document.getElementById("fileError");
+  var form = document.querySelector("form");
+  var max = 5 * 1024 * 1024;
+  function mark(key, ok) {
+    var el = document.querySelector('#colCheck [data-ok="'+key+'"]');
+    if (!el) return;
+    el.textContent = (ok ? "✓ " : "○ ") + el.textContent.replace(/^[○✓]\s*/, "");
+    el.style.color = ok ? "var(--success)" : "var(--muted)";
+  }
+  function validate(file) {
+    err.textContent = "";
+    if (!file) return false;
+    var okExt = /\.xlsx$/i.test(file.name);
+    var okSize = file.size <= max;
+    mark("ext", okExt);
+    mark("size", okSize);
+    if (!okExt) { err.textContent = "Solo se permiten archivos .xlsx"; return false; }
+    if (!okSize) { err.textContent = "El archivo supera 5 MB"; return false; }
+    label.textContent = file.name;
+    return true;
+  }
+  input.addEventListener("change", function () { validate(input.files[0]); });
+  ["dragenter","dragover"].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.add("drop-on"); });
+  });
+  ["dragleave","drop"].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) { e.preventDefault(); zone.classList.remove("drop-on"); });
+  });
+  zone.addEventListener("drop", function (e) {
+    var f = e.dataTransfer.files[0];
+    if (!f) return;
+    var dt = new DataTransfer();
+    dt.items.add(f);
+    input.files = dt.files;
+    validate(f);
+  });
+  if (form) form.addEventListener("submit", function () {
+    var bar = document.getElementById("uploadProgress");
+    if (bar) bar.classList.remove("hidden");
+  });
+})();
+</script>
 </body>
 </html>

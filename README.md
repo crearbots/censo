@@ -86,3 +86,10 @@ Antes de un deploy:
 ## Privacidad
 
 No subir a GitHub bases `.db`, respaldos ni Excel con datos reales de la comunidad.
+
+
+## UI: botones
+
+- Un primario azul por pantalla.
+- WhatsApp / copiar informe: verde.
+- Eliminar: rojo y siempre con confirmación.

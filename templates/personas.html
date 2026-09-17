@@ -16,7 +16,8 @@
                 <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
                 <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
-            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+                        <button type="button" id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="app-nav">Menú</button>
+            <nav id="app-nav" class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
                 <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Inicio</a>
                 <a href="/upload" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Subir</a>
                 <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Personas</a>
@@ -38,7 +39,7 @@
             </p>
         </div>
 
-        <form method="get" action="/personas" class="bg-white rounded-lg shadow p-4 mb-6">
+        <form method="get" action="/personas" class="filters-sticky">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Buscar</label>
@@ -73,9 +74,9 @@
                     <input type="date" name="fecha_hasta" value="{{ filtros.fecha_hasta }}"
                            class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
-                <div class="flex items-end gap-2">
-                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 font-medium">Filtrar</button>
-                    <a href="/personas" class="text-sm text-gray-500 hover:underline py-2">Limpiar</a>
+                <div class="filters-actions">
+                    <a href="/personas" class="btn-ghost">Limpiar</a>
+                    <button type="submit" class="btn-primary">Filtrar</button>
                 </div>
             </div>
         </form>
@@ -190,7 +191,10 @@
             </div>
             </div>
             {% else %}
-            <p class="px-4 py-8 text-center text-gray-500 text-sm">No hay personas con estos filtros.</p>
+            <div class="empty-state">
+                <p>No hay personas con estos filtros.</p>
+                <a href="/personas" class="btn-ghost">Limpiar filtros</a>
+            </div>
             {% endif %}
         </div>
     </main>

@@ -17,7 +17,8 @@
                 <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
                 <p class="text-blue-200 text-xs hidden sm:block">Carvajal</p>
             </div>
-            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+                        <button type="button" id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="app-nav">Menú</button>
+            <nav id="app-nav" class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
                 <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 bg-blue-700">Inicio</a>
                 <a href="/upload" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Subir</a>
                 <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 ">Personas</a>
@@ -31,14 +32,13 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-8">
-        <!-- Título de periodo -->
         <div class="mb-6">
-            <h2 class="text-2xl sm:text-3xl font-semibold text-gray-800">{{ periodo_titulo }}</h2>
-            <p class="text-gray-600 text-sm mt-1">Seguimiento del censo de instalación de la App</p>
+            <h1 class="text-2xl sm:text-3xl font-semibold text-gray-800">{{ periodo_titulo }}</h1>
+            <p class="section-sub">Lectura de avance y seguimiento operativo</p>
         </div>
 
-        <!-- Héroe: avance principal -->
-        <div class="bg-white rounded-xl shadow-md p-6 sm:p-8 mb-6 border border-gray-100">
+        <div class="dash-top">
+        <div class="bg-white rounded-xl shadow-md p-6 sm:p-8 border border-gray-100">
             <div class="flex flex-wrap justify-between items-start gap-2 mb-2">
                 <p class="text-sm font-medium text-gray-500">
                     {% if usa_dato_nacional %}
@@ -79,8 +79,7 @@
             {% endif %}
         </div>
 
-        <!-- KPIs informativos -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mb-8">
+        <div class="dash-kpis">
             <a href="/personas?estado=no_instalada"
                class="bg-white rounded-xl shadow p-6 border border-gray-100 hover:border-amber-300 hover:shadow-md transition block">
                 <p class="text-sm text-gray-500 mb-1">Personas que no han instalado la App</p>
@@ -93,11 +92,11 @@
                 <p class="text-xs text-gray-400 mt-2">Personas en nuestra base de datos</p>
             </div>
         </div>
+        </div>
 
-        <!-- Gráfica de evolución -->
         <div class="bg-white rounded-xl shadow p-6 mb-8 border border-gray-100">
-            <h3 class="text-lg font-medium text-gray-800 mb-1">Crecimiento · registro interno vs sede nacional</h3>
-            <p class="text-xs text-gray-400 mb-3">Las estrellas doradas marcan un salto grande. Tócalas para ver el detalle.</p>
+            <h2 class="section-title">Crecimiento · registro interno vs sede nacional</h2>
+            <p class="section-sub mb-3">Las estrellas doradas marcan un salto grande. Tócalas para ver el detalle.</p>
             <div class="flex flex-wrap gap-2 mb-3">
                 <button type="button" id="btnSerieInterno" class="px-3 py-1.5 rounded-full text-sm font-medium bg-blue-600 text-white">Registro interno</button>
                 <button type="button" id="btnSerieNacional" class="px-3 py-1.5 rounded-full text-sm font-medium bg-emerald-600 text-white">Sede nacional</button>
@@ -111,13 +110,40 @@
             <p class="text-sm text-amber-400 mb-3">{{ alerta_curva }}</p>
             {% endif %}
             {% if chart_labels %}
-            <div class="h-72 md:h-96">
-                <canvas id="chartEvolucion"></canvas>
+            <div class="dash-chart h-72 md:h-96">
+                <canvas id="chartEvolucion" role="img" aria-label="Gráfica de crecimiento del registro interno y del dato de sede nacional"></canvas>
             </div>
             <div id="detalleDia" class="mt-4 text-sm hidden" style="color:var(--text)"></div>
+            <details class="mt-4">
+                <summary class="cursor-pointer text-sm" style="color:var(--muted)">Ver datos de la gráfica</summary>
+                <div class="overflow-x-auto mt-3">
+                    <table class="min-w-full text-sm">
+                        <caption class="sr-only">Valores por fecha del registro interno y sede nacional</caption>
+                        <thead>
+                            <tr>
+                                <th class="text-left py-1 pr-3">Fecha</th>
+                                <th class="text-right py-1 pr-3">Registro interno</th>
+                                <th class="text-right py-1">Sede nacional</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for i in range(chart_labels|length) %}
+                            <tr>
+                                <td class="py-1 pr-3">{{ chart_labels[i] }}</td>
+                                <td class="text-right py-1 pr-3">{{ chart_data[i] }}</td>
+                                <td class="text-right py-1">{% if chart_data_nacional[i] is not none %}{{ chart_data_nacional[i] }}{% else %}—{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
             {% else %}
             <div class="h-48 flex items-center justify-center bg-gray-50 rounded border border-dashed border-gray-300">
-                <p class="text-gray-400 text-sm">Aún no hay datos. Sube el primer listado para ver la evolución.</p>
+                <div class="empty-state">
+                <p>Aún no hay datos para la gráfica.</p>
+                <a href="/upload" class="btn-primary">Subir listado</a>
+            </div>
             </div>
             {% endif %}
         </div>
@@ -132,7 +158,7 @@
                         <tr>
                             <th class="px-4 py-2 text-left text-gray-600">Nombre</th>
                             <th class="px-4 py-2 text-left text-gray-600">Celular</th>
-                            <th class="px-4 py-2 text-left text-gray-600">Acción</th>
+                            <th class="px-4 py-2 text-left text-gray-600 sticky-actions">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -140,7 +166,7 @@
                         <tr class="border-t">
                             <td class="px-4 py-2">{{ p.nombre }}</td>
                             <td class="px-4 py-2 text-gray-500">Sin celular</td>
-                            <td class="px-4 py-2">
+                            <td class="px-4 py-2 sticky-actions">
                                 <div class="flex items-center gap-3">
                                     <a href="/pendiente/{{ p.id }}" class="text-blue-600 hover:underline text-sm font-medium">Editar</a>
                                     <form method="post" action="/pendiente/{{ p.id }}/eliminar"
@@ -167,7 +193,7 @@
                         <tr>
                             <th class="px-4 py-2 text-left text-gray-600">Nombre</th>
                             <th class="px-4 py-2 text-left text-gray-600">Celular</th>
-                            <th class="px-4 py-2 text-left text-gray-600">Acción</th>
+                            <th class="px-4 py-2 text-left text-gray-600 sticky-actions">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -175,7 +201,7 @@
                         <tr class="border-t">
                             <td class="px-4 py-2">{{ p.nombre }}</td>
                             <td class="px-4 py-2 text-gray-500">{% if p.pendiente_revision %}Sin celular{% else %}{{ p.celular }}{% endif %}</td>
-                            <td class="px-4 py-2">
+                            <td class="px-4 py-2 sticky-actions">
                                 <div class="flex flex-wrap gap-3">
                                     <a href="/seguimiento/{{ p.id }}" class="text-indigo-600 hover:underline text-sm font-medium">Asignar motivo</a>
                                     {% if not p.pendiente_revision and p.celular and p.celular|length == 10 %}
@@ -196,10 +222,10 @@
 
         <!-- Acción principal -->
         <div class="flex flex-col sm:flex-row flex-wrap gap-3 sm:items-center">
-            <a href="/upload" class="bg-blue-600 text-white px-5 py-2.5 rounded-md hover:bg-blue-700 transition font-medium text-center w-full sm:w-auto">
+            <a href="/upload" class="btn-primary w-full sm:w-auto">
                 + Subir listado
             </a>
-            <a href="/informe" class="bg-white border border-gray-300 text-gray-700 px-5 py-2.5 rounded-md hover:bg-gray-50 transition font-medium">
+            <a href="/informe" class="btn-ghost">
                 Informe WhatsApp
             </a>
             <p class="text-xs text-gray-400">El resto de opciones está en el menú superior.</p>
@@ -371,3 +397,4 @@
     </script>
 </body>
 </html>
+
