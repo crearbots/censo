@@ -49,30 +49,11 @@
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Estado</label>
                     <select name="estado" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="todos" {% if filtros.estado == "todos" %}selected{% endif %}>Todos</option>
                         <option value="instalada" {% if filtros.estado == "instalada" %}selected{% endif %}>Instalada (censadas)</option>
                         <option value="no_instalada" {% if filtros.estado == "no_instalada" %}selected{% endif %}>No instalada (seguimiento)</option>
                         <option value="pendientes" {% if filtros.estado == "pendientes" %}selected{% endif %}>Pendientes de celular</option>
-                        <option value="todos" {% if filtros.estado == "todos" %}selected{% endif %}>Todos</option>
                     </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Fuente</label>
-                    <select name="fuente" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">Todas</option>
-                        {% for f in fuentes %}
-                        <option value="{{ f }}" {% if filtros.fuente == f %}selected{% endif %}>{{ f }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Desde</label>
-                    <input type="date" name="fecha_desde" value="{{ filtros.fecha_desde }}"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Hasta</label>
-                    <input type="date" name="fecha_hasta" value="{{ filtros.fecha_hasta }}"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="filters-actions">
                     <a href="/personas" class="btn-ghost">Limpiar</a>

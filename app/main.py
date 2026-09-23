@@ -239,8 +239,8 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
     med_i = _mediana(incrementos_int)
     med_n = _mediana(incrementos_nac)
-    picos_interno = [(inc >= 20 and inc >= 3 * med_i) for inc in incrementos_int]
-    picos_nacional = [(inc >= 20 and inc >= 3 * med_n) for inc in incrementos_nac]
+    picos_interno = [(inc > 30) for inc in incrementos_int]
+    picos_nacional = [(inc > 30) for inc in incrementos_nac]
 
     from datetime import datetime as _dt
     cargas_todas = db.query(Carga).all()
@@ -985,9 +985,7 @@ async def listar_personas(
 
     query = db.query(Persona)
 
-    # Filtro por estado
-    # Por defecto: Instalada (censados). "no_instalada" = seguimiento. "todos" = todo.
-    estado = (estado or "instalada").strip().lower()
+    estado = (estado or "todos").strip().lower()
     if estado == "instalada":
         query = query.filter(
             Persona.estado == "Instalada",
@@ -1001,10 +999,24 @@ async def listar_personas(
 
     q = (q or "").strip()
     if q:
+        from .processing import normalizar_celular
+        import re
         like = f"%{q}%"
-        query = query.filter(
-            (Persona.nombre.ilike(like)) | (Persona.celular.ilike(like))
-        )
+        digitos = re.sub(r"\D", "", q)
+        if len(digitos) >= 12 and digitos.startswith("57"):
+            digitos = digitos[2:]
+        celular_exacto = normalizar_celular(q)
+        if celular_exacto:
+            query = query.filter(
+                (Persona.nombre.ilike(like)) | (Persona.celular == celular_exacto)
+            )
+        elif digitos:
+            like_cel = f"%{digitos}%"
+            query = query.filter(
+                (Persona.nombre.ilike(like)) | (Persona.celular.ilike(like_cel))
+            )
+        else:
+            query = query.filter(Persona.nombre.ilike(like))
 
     if fuente and fuente in FUENTES_VALIDAS:
         query = query.filter(Persona.fuente_ultima == fuente)

@@ -1,22 +1,25 @@
-# InfoMIRA Censo
+# Censo · dashboard e informe semanal
 
-Aplicación web interna para el censo de instalación de la App InfoMIRA en la comunidad de Carvajal.
+Aplicación interna (Python · FastAPI) para que un equipo de operación deje de cruzar listados a mano y vea, en un solo lugar, el avance del censo de instalación de una app.
 
-Acceso restringido (login). No es un sitio público.
+Resuelve duplicados (el celular es el identificador), compara el registro interno con el dato oficial de sede nacional y genera un informe semanal listo para pegar en WhatsApp. El acceso es con login: es un **demo operativo**, no un sitio abierto.
 
-## Qué hace
+Contexto: se usa en campo con listados Excel y metas de instalación. El detalle de la marca del cliente no es el foco de este repo.
 
-- Carga listados Excel y evita contar dos veces a la misma persona (identificador: celular).
-- Dashboard de avance (meta del equipo: 500), con el dato de sede nacional como métrica principal.
-- Consulta de personas, seguimiento de quienes no han instalado la App y historial de cargas.
-- Informe semanal listo para copiar a WhatsApp.
+**Demo:** [dashboard en Railway](https://infomira-censo-production.up.railway.app/) (pide usuario y contraseña).
 
-## Requisitos
+Acceso restringido. No es un sitio público.
 
-- Python 3.10 o superior
-- Git
+## Producto
+
+- Carga de Excel sin contar dos veces a la misma persona.
+- Dashboard oscuro: avance vs meta, curva interna vs sede nacional, comparación de un periodo (dos puntos) e informe para WhatsApp.
+- Personas con búsqueda por nombre o celular (tolera espacios y prefijo 57) y seguimiento de quienes no han instalado.
+- Estética: contraste azul / verde, énfasis en el avance y en comparar tramos de la gráfica.
 
 ## Instalación local (Linux)
+
+Requisito: Python 3.10+ y Git.
 
 ```bash
 git clone https://github.com/crearbots/censo.git
@@ -32,9 +35,9 @@ python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 Abrir: http://127.0.0.1:8000/login
 
-Las credenciales se definen con variables de entorno (`APP_USER`, `APP_PASSWORD`). En local, si no las defines, la app usa valores de desarrollo.
+Credenciales: variables `APP_USER` y `APP_PASSWORD`. En local, si no las defines, hay valores de desarrollo.
 
-La base `infomira_censo.db` se crea sola. No la subas a GitHub.
+La base SQLite se crea sola. No la subas a GitHub.
 
 ## Formato del Excel
 
@@ -45,13 +48,11 @@ Columnas (el orden y las mayúsculas no importan): **Nombre**, **Celular**, **Es
 | Instalada | Entra al censo si el celular es válido (10 dígitos) |
 | No instalada | Queda en seguimiento; el motivo se asigna en la app |
 
-Reglas importantes:
-
 - El celular es el identificador. Si ya existe, se actualiza; no se duplica.
 - Si la persona ya es Instalada, un listado posterior en “No instalada” no la revierte.
-- `fecha_listado` se guarda la primera vez y **no se pisa** al volver a subir el mismo listado.
+- `fecha_listado` se guarda la primera vez y no se pisa al volver a subir el mismo archivo.
 
-Al cargar hay que indicar: fuente, fecha del listado y equipo que carga.
+Al cargar: fuente, fecha del listado y equipo.
 
 ## Variables de entorno (producción)
 
@@ -68,28 +69,25 @@ En Railway el volumen va en `/data` y `DATABASE_PATH=/data/infomira_censo.db`.
 
 Fuente de verdad: GitHub, rama **`master`**. Un push a `master` dispara el deploy en Railway.
 
-Antes de un deploy:
-
-1. Descargar respaldo de la base (producción).
+1. Descargar respaldo de la base en producción.
 2. Probar en local.
-3. `git pull origin master` y luego push a `master`.
-4. Verificar el deploy y hacer login + una carga de prueba.
+3. `git pull origin master` y push a `master`.
+4. Verificar el deploy (login + una revisión del dashboard).
 
 ## Versiones
 
-| Tag | Qué incluye |
-|-----|-------------|
-| `v1.0.0-mvp` | Primera versión en producción |
-| `v1.1.0` | Personas, dato nacional, historial, No instalada, Excel robusto |
-| `v1.2.0` | Dashboard de informe mensual; avance con dato nacional |
+Los cortes estables están en los **tags** del repo (`v1.0.0-mvp` … `v1.6.0` y siguientes). Ver [Releases / tags](https://github.com/crearbots/censo/tags).
 
 ## Privacidad
 
-No subir a GitHub bases `.db`, respaldos ni Excel con datos reales de la comunidad.
+No subir a GitHub bases `.db`, respaldos ni Excel con datos reales.
 
+## UI
 
-## UI: botones
-
-- Un primario azul por pantalla.
+- Un botón primario azul por pantalla.
 - WhatsApp / copiar informe: verde.
 - Eliminar: rojo y siempre con confirmación.
+
+---
+
+Sebastian Romero · [Portafolio](https://crearbots.github.io/portafolio/) · [GitHub](https://github.com/crearbots)

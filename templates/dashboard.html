@@ -100,10 +100,11 @@
             <div class="flex flex-wrap gap-2 mb-3">
                 <button type="button" id="btnSerieInterno" class="px-3 py-1.5 rounded-full text-sm font-medium bg-blue-600 text-white">Registro interno</button>
                 <button type="button" id="btnSerieNacional" class="px-3 py-1.5 rounded-full text-sm font-medium bg-emerald-600 text-white">Sede nacional</button>
+                <button type="button" id="btnComparar" class="px-3 py-1.5 rounded-full text-sm font-medium bg-amber-500 text-slate-900">Comparar periodo</button>
             </div>
             <div class="flex flex-wrap gap-2 mb-4">
-                <button type="button" data-rango="30" class="btn-rango px-3 py-1.5 rounded-full text-xs font-medium bg-slate-700 text-white">Último mes</button>
-                <button type="button" data-rango="90" class="btn-rango px-3 py-1.5 rounded-full text-xs font-medium bg-slate-600 text-slate-200">Últimos 3 meses</button>
+                <button type="button" data-rango="30" class="btn-rango px-3 py-1.5 rounded-full text-xs font-medium bg-slate-600 text-slate-200">Último mes</button>
+                <button type="button" data-rango="90" class="btn-rango px-3 py-1.5 rounded-full text-xs font-medium bg-slate-700 text-white">Últimos 3 meses</button>
                 <button type="button" data-rango="all" class="btn-rango px-3 py-1.5 rounded-full text-xs font-medium bg-slate-600 text-slate-200">Todo</button>
             </div>
             {% if alerta_curva %}
@@ -280,7 +281,9 @@
                     style: picos.map(p => p ? 'star' : 'circle'),
                 };
             }
-            let rango = '30';
+            let rango = '90';
+            let compararOn = false;
+            let cmpSel = null;
             let sl = sliceRango(rango);
             let si = styles(sl.pi);
             let sn = styles(sl.pn);
@@ -320,10 +323,98 @@
                     maintainAspectRatio: false,
                     onClick: (evt, els) => {
                         if (!els.length) return;
-                        const i = els[0].index;
+                        const hit = els[0];
+                        const i = hit.index;
+                        const ds = hit.datasetIndex;
+                        const box = document.getElementById('detalleDia');
+                        if (compararOn) {
+                            if (ds > 1) return;
+                            if (!chartCenso.isDatasetVisible(ds)) return;
+                            if (!cmpSel) {
+                                cmpSel = { ds: ds, i: i };
+                                const dsObj = chartCenso.data.datasets[ds];
+                                const n = (dsObj.data || []).length;
+                                dsObj.pointRadius = Array.from({length: n}, (_, k) => k === i ? 8 : 3);
+                                dsObj.pointBorderWidth = Array.from({length: n}, (_, k) => k === i ? 4 : 1);
+                                dsObj.pointBorderColor = Array.from({length: n}, (_, k) => k === i ? '#fbbf24' : (ds === 0 ? 'rgb(96, 165, 250)' : 'rgb(52, 211, 153)'));
+                                dsObj.pointBackgroundColor = Array.from({length: n}, (_, k) => ds === 0 ? 'rgb(96, 165, 250)' : 'rgb(52, 211, 153)');
+                                const other = chartCenso.data.datasets[ds === 0 ? 1 : 0];
+                                if (other) other.borderColor = ds === 0 ? 'rgba(52, 211, 153, 0.25)' : 'rgba(96, 165, 250, 0.25)';
+                                chartCenso.update();
+                                if (box) {
+                                    box.classList.remove('hidden');
+                                    box.innerHTML = '<p><strong>1 de 2</strong> — ' + sl.labels[i] + '. Toca el segundo punto de <strong>esta misma línea</strong>.</p>';
+                                }
+                                return;
+                            }
+                            if (cmpSel.ds !== ds) {
+                                if (box) {
+                                    box.classList.remove('hidden');
+                                    box.innerHTML = '<p>El segundo punto debe ser de la misma línea.</p>';
+                                }
+                                return;
+                            }
+                            let a = cmpSel.i, b = i;
+                            if (a > b) { const tmp = a; a = b; b = tmp; }
+                            const serie = ds === 0 ? sl.int : sl.nac;
+                            const v1 = serie[a], v2 = serie[b];
+                            if (v1 == null || v2 == null) return;
+                            const delta = v2 - v1;
+                            const signo = delta > 0 ? '+' + delta : String(delta);
+                            const nombre = ds === 0 ? 'Registro interno' : 'Sede nacional';
+                            const d1 = sl.keys[a] ? new Date(sl.keys[a]) : null;
+                            const d2 = sl.keys[b] ? new Date(sl.keys[b]) : null;
+                            let dias = 1;
+                            if (d1 && d2) dias = Math.max(1, Math.round((d2 - d1) / 86400000));
+                            const ritmo = (delta / dias).toFixed(1);
+                            let extra = '';
+                            if (ds === 1) {
+                                extra = '<p>Faltan ' + Math.max(0, 500 - v2) + ' para la meta de 500.</p>';
+                            }
+                            const fill = sl.labels.map((_, idx) => (idx >= a && idx <= b) ? serie[idx] : null);
+                            chartCenso.data.datasets = chartCenso.data.datasets.slice(0, 2);
+                            const base = Math.min(v1, v2);
+                            chartCenso.data.datasets.push({
+                                label: 'Comparación',
+                                data: fill,
+                                borderColor: 'rgba(251, 191, 36, 0.95)',
+                                backgroundColor: 'rgba(251, 191, 36, 0.22)',
+                                fill: true,
+                                tension: 0.2,
+                                spanGaps: false,
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                pointHoverRadius: 0
+                            });
+                            chartCenso.update();
+                            const mid = Math.round((a + b) / 2);
+                            const meta = chartCenso.getDatasetMeta(ds);
+                            const pt = meta && meta.data ? meta.data[mid] : null;
+                            let floatEl = document.getElementById('cmpFloat');
+                            if (!floatEl) {
+                                floatEl = document.createElement('div');
+                                floatEl.id = 'cmpFloat';
+                                ctx.parentNode.style.position = 'relative';
+                                ctx.parentNode.appendChild(floatEl);
+                            }
+                            floatEl.style.cssText = 'position:absolute;transform:translate(-50%,-140%);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--text);pointer-events:none;z-index:5;text-align:center;box-shadow:var(--shadow);white-space:nowrap;max-width:90%;';
+                            floatEl.innerHTML = '<strong>' + signo + '</strong> · ' + sl.labels[a] + ' → ' + sl.labels[b];
+                            if (pt) {
+                                floatEl.style.left = pt.x + 'px';
+                                floatEl.style.top = pt.y + 'px';
+                                floatEl.style.display = 'block';
+                            }
+                            if (box) {
+                                box.classList.remove('hidden');
+                                box.innerHTML = '<p class="font-medium">' + sl.labels[a] + ' → ' + sl.labels[b] + ' · ' + nombre + '</p>'
+                                    + '<p><strong>' + v1 + ' → ' + v2 + ' · ' + signo + '</strong></p>'
+                                    + '<p>' + signo + ' en ' + dias + ' días (≈ ' + ritmo + ' por día)</p>' + extra;
+                            }
+                            cmpSel = null;
+                            return;
+                        }
                         const key = sl.keys[i];
                         const d = detalle[key] || {};
-                        const box = document.getElementById('detalleDia');
                         if (!box) return;
                         let html = '<p class="font-medium mb-1" style="color:var(--text)">Día ' + sl.labels[i] + '</p>';
                         html += '<p>Registro interno: <strong>' + (d.nuevas_internas || 0) + ' nuevas</strong></p>';
@@ -347,11 +438,28 @@
                     plugins: { legend: { display: false } }
                 }
             });
+            function resetComparacion() {
+                compararOn = false;
+                cmpSel = null;
+                chartCenso.data.datasets = chartCenso.data.datasets.slice(0, 2);
+                if (chartCenso.data.datasets[0]) chartCenso.data.datasets[0].borderColor = 'rgb(96, 165, 250)';
+                if (chartCenso.data.datasets[1]) chartCenso.data.datasets[1].borderColor = 'rgb(52, 211, 153)';
+                const floatEl = document.getElementById('cmpFloat');
+                if (floatEl) floatEl.style.display = 'none';
+                const b = document.getElementById('btnComparar');
+                if (b) {
+                    b.textContent = 'Comparar periodo';
+                    b.className = 'px-3 py-1.5 rounded-full text-sm font-medium bg-amber-500 text-slate-900';
+                }
+                const box = document.getElementById('detalleDia');
+                if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+            }
             function aplicarRango(dias) {
                 rango = dias;
                 sl = sliceRango(dias);
                 si = styles(sl.pi);
                 sn = styles(sl.pn);
+                resetComparacion();
                 chartCenso.data.labels = sl.labels;
                 chartCenso.data.datasets[0].data = sl.int;
                 chartCenso.data.datasets[0].pointRadius = si.radius;
@@ -382,6 +490,31 @@
                 if (bi) bi.className = 'px-3 py-1.5 rounded-full text-sm font-medium ' + (iOn ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300');
                 if (bn) bn.className = 'px-3 py-1.5 rounded-full text-sm font-medium ' + (nOn ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300');
             }
+            document.getElementById('btnComparar')?.addEventListener('click', () => {
+                compararOn = !compararOn;
+                cmpSel = null;
+                chartCenso.data.datasets = chartCenso.data.datasets.slice(0, 2);
+                if (chartCenso.data.datasets[0]) chartCenso.data.datasets[0].borderColor = 'rgb(96, 165, 250)';
+                if (chartCenso.data.datasets[1]) chartCenso.data.datasets[1].borderColor = 'rgb(52, 211, 153)';
+                chartCenso.update();
+                const floatEl = document.getElementById('cmpFloat');
+                if (floatEl) floatEl.style.display = 'none';
+                const b = document.getElementById('btnComparar');
+                if (b) {
+                    b.textContent = compararOn ? 'Quitar comparación' : 'Comparar periodo';
+                    b.className = 'px-3 py-1.5 rounded-full text-xs font-medium ' + (compararOn ? 'bg-amber-400 text-slate-900 ring-2 ring-amber-200' : 'bg-amber-500 text-slate-900');
+                }
+                const box = document.getElementById('detalleDia');
+                if (box) {
+                    if (compararOn) {
+                        box.classList.remove('hidden');
+                        box.innerHTML = '<p>Toca el primer punto de la línea que quieres comparar.</p>';
+                    } else {
+                        box.classList.add('hidden');
+                        box.innerHTML = '';
+                    }
+                }
+            });
             document.getElementById('btnSerieInterno')?.addEventListener('click', () => {
                 chartCenso.setDatasetVisibility(0, !chartCenso.isDatasetVisible(0));
                 chartCenso.update();
@@ -397,4 +530,3 @@
     </script>
 </body>
 </html>
-
