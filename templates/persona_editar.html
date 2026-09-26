@@ -10,19 +10,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
-    <header class="bg-blue-800 text-white shadow sticky top-0 z-20">
-        <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-2">
-            <div class="min-w-0">
-                <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
-            </div>
-            <nav class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm">
-                <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700">Inicio</a>
-                <a href="/personas" class="px-2.5 py-1.5 rounded bg-blue-700">Personas</a>
-                                <button type="button" id="theme-toggle" class="px-2.5 py-1.5">Modo claro</button>
-                <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
-            </nav>
-        </div>
-    </header>
+    {% set activo = 'personas' %}
+    {% include "_nav.html" %}
     <main class="max-w-lg mx-auto px-3 sm:px-4 py-4 sm:py-8">
         <a href="/personas?estado=todos" class="text-blue-600 hover:underline text-sm">← Volver a Personas</a>
         <h2 class="text-2xl font-semibold text-gray-800 mt-2">Editar persona</h2>

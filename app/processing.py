@@ -50,8 +50,10 @@ def normalizar_celular(valor: Any) -> str | None:
 def normalizar_nombre(valor: Any) -> str:
     if valor is None:
         return ""
-    texto = str(valor).strip()
-    return re.sub(r"\s+", " ", texto)
+    texto = re.sub(r"\s+", " ", str(valor).strip())
+    if not texto:
+        return ""
+    return " ".join(p.capitalize() for p in texto.split(" "))
 
 
 def normalizar_estado(valor: Any) -> str | None:

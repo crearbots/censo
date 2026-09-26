@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Programación - Censo App</title>
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    {% set activo = "programacion" %}
+    {% include "_nav.html" %}
+    <main class="max-w-7xl mx-auto px-3 py-6">
+        <h1 class="text-2xl font-semibold">Punto de información</h1>
+        <p class="text-sm mb-3" style="color:var(--muted)">Semana {{ lunes.strftime('%d/%m') }} – {{ domingo.strftime('%d/%m/%Y') }}</p>
+        <div class="flex flex-wrap gap-2 mb-4">
+            <a href="/programacion?modo=editar" class="px-4 py-2 rounded-full text-sm font-medium {% if modo != 'foto' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Armar semana</a>
+            <a href="/programacion?modo=foto" class="px-4 py-2 rounded-full text-sm font-medium {% if modo == 'foto' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Ver para foto</a>
+            {% if modo == 'foto' %}
+            <button type="button" id="btnCopiarFoto" class="btn-success text-sm">Copiar imagen para WhatsApp</button>
+            {% endif %}
+            <button type="button" onclick="document.getElementById('guia').classList.remove('hidden')" class="btn-ghost text-sm">¿Cómo hago la programación?</button>
+        </div>
+        <p class="text-sm mb-4">{% if modo == 'foto' %}Esta vista es para la captura. No hay botones de editar.{% else %}Estás armando la semana. Toca + Agregar en un horario.{% endif %}</p>
+        <div id="guia" class="hidden bg-white rounded-xl shadow p-4 mb-4">
+            <p class="font-medium mb-2">Cómo programar (3 pasos)</p>
+            <ol class="list-decimal ml-5 text-sm space-y-1">
+                <li>Toca el día y el horario (por ejemplo lunes 7:00 a.m.).</li>
+                <li>Si la persona ya está en Mis colaboradores, tócala.</li>
+                <li>Si no hay tarjeta, búscalo por nombre o celular. Si no existe, créalo.</li>
+            </ol>
+            <p class="text-sm mt-2">Recordar que cada colaborador puede programarse máximo 2 veces por semana (La FIMLM no tiene ese límite).</p>
+            <button type="button" class="btn-ghost mt-2" onclick="document.getElementById('guia').classList.add('hidden')">Cerrar</button>
+        </div>
+        {% if error %}<p class="alert-error mb-3">{{ error }}</p>{% endif %}
+        {% if ok %}<p class="mb-3 text-sm" style="color:var(--success)">{{ ok }}</p>{% endif %}
+                {% if modo != 'foto' and fecha_sel and horario_sel %}
+        <div class="bg-white rounded-xl shadow p-4 mb-4 border-2 border-amber-400">
+            <p class="font-medium mb-2">Estás llenando: {{ fecha_sel }} · {{ horario_sel }}</p>
+            {% if confirmar %}
+            <form method="post" action="/programacion/asignar" class="mb-3">
+                <input type="hidden" name="persona_id" value="{{ confirmar }}">
+                <input type="hidden" name="fecha" value="{{ fecha_sel }}">
+                <input type="hidden" name="horario" value="{{ horario_sel }}">
+                <input type="hidden" name="confirmar_fimlm" value="si">
+                <button class="btn-primary">Sí, priorizar FIMLM</button>
+            </form>
+            {% endif %}
+            <p class="text-sm mb-2">Mis colaboradores</p>
+            <div class="flex flex-wrap gap-2 mb-3">
+                {% for p in mis_cols %}
+                <form method="post" action="/programacion/asignar">
+                    <input type="hidden" name="persona_id" value="{{ p.id }}">
+                    <input type="hidden" name="fecha" value="{{ fecha_sel }}">
+                    <input type="hidden" name="horario" value="{{ horario_sel }}">
+                    <button class="px-3 py-2 rounded-lg border text-left">{{ p.nombre }}<br><span class="text-xs" style="color:var(--muted)">{{ p.celular }}</span></button>
+                </form>
+                {% else %}
+                <p class="text-sm" style="color:var(--muted)">Aún no hay tarjetas. Busca a la persona.</p>
+                {% endfor %}
+            </div>
+            <form method="get" action="/programacion" class="flex gap-2 mb-3">
+                <input type="hidden" name="fecha_sel" value="{{ fecha_sel }}">
+                <input type="hidden" name="horario_sel" value="{{ horario_sel }}">
+                <input type="hidden" name="modo" value="editar">
+                <input name="q" value="{{ q }}" placeholder="Nombre o celular" class="flex-1 px-3 py-2 border rounded-md">
+                <button class="btn-primary">Buscar</button>
+            </form>
+            {% for p in busqueda %}
+            <form method="post" action="/programacion/asignar" class="mb-2">
+                <input type="hidden" name="persona_id" value="{{ p.id }}">
+                <input type="hidden" name="fecha" value="{{ fecha_sel }}">
+                <input type="hidden" name="horario" value="{{ horario_sel }}">
+                <button class="btn-ghost w-full text-left">{{ p.nombre }} · {{ p.celular }}</button>
+            </form>
+            {% endfor %}
+            {% if busqueda_vacia %}
+            <p class="text-sm mt-3 mb-2 font-medium text-amber-700">No está en la base. Escríbela aquí para crearla y asignarla.</p>
+            <form method="post" action="/programacion/alta" class="grid sm:grid-cols-3 gap-2">
+                <input type="hidden" name="fecha" value="{{ fecha_sel }}">
+                <input type="hidden" name="horario" value="{{ horario_sel }}">
+                <input name="nombre" required placeholder="Nombre" class="px-3 py-2 border-2 border-amber-400 rounded-md">
+                <input name="celular" required placeholder="Celular" class="px-3 py-2 border-2 border-amber-400 rounded-md">
+                <button class="btn-primary">Agregar y asignar</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% if modo == 'foto' %}
+        <p id="fotoMsg" class="text-sm mb-2" style="color:var(--muted)"></p>
+        <div id="foto-cuadro" class="rounded-xl shadow p-4 w-full" style="background:var(--card);color:var(--text);">
+            <p class="font-semibold mb-3">Punto de información · {{ lunes.strftime('%d/%m') }} – {{ domingo.strftime('%d/%m/%Y') }}</p>
+            <div class="grid gap-3 w-full" style="grid-template-columns: repeat({{ todos_dias|selectattr('tiene')|list|length or 1 }}, minmax(0, 1fr));">
+                {% for dia in todos_dias if dia.tiene %}
+                <div class="border rounded-lg p-3" style="border-color:var(--border);">
+                    <p class="font-semibold text-center text-sm mb-2">{{ dia.nombre }} {{ dia.fecha.strftime('%d/%m') }}</p>
+                    {% for s in dia.slots %}
+                    <p class="text-xs font-semibold mt-3 mb-1" style="color:var(--muted)">{{ s.etiqueta }}</p>
+                    {% for g in s.gente %}
+                    <p class="text-xs rounded px-2 mb-1 text-center {% if g.turno.delegacion == 'comunicaciones' %}bg-yellow-100 text-yellow-900{% elif g.turno.delegacion == 'politica' %}bg-purple-100 text-purple-900{% elif g.turno.delegacion == 'juventudes' %}bg-green-100 text-green-900{% elif g.turno.delegacion == 'electoral' %}bg-orange-100 text-orange-900{% elif g.turno.delegacion == 'fimlm' %}bg-blue-100 text-blue-900{% else %}bg-slate-100{% endif %}" style="min-height:1.85rem;line-height:1.85rem;">{{ g.persona.nombre }}</p>
+                    {% endfor %}
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+            <p class="text-xs mt-4 font-medium" style="color:#334155">Azul FIMLM · Morado Política · Verde Juventudes · Naranja Electoral · Amarillo Comunicaciones</p>
+        </div>
+        {% else %}
+        {% for dia in dias %}
+        <section class="bg-white rounded-xl shadow p-4 mb-3" id="dia-{{ dia.fecha }}">
+            <h2 class="font-semibold">{{ dia.nombre }} {{ dia.fecha.strftime('%d/%m') }}
+                {% if dia.festivo %}<span class="text-amber-600 text-sm font-normal"> · Festivo: mañana 8:00 y tarde 5:00</span>{% endif %}
+            </h2>
+            {% for s in dia.slots %}
+            <div class="mt-3 pl-1 border-l-4 border-blue-500" id="slot-{{ dia.fecha }}-{{ s.horario }}">
+                <div class="flex justify-between items-center">
+                    <p class="font-medium">{{ s.etiqueta }}</p>
+                    {% if modo != 'foto' %}
+                    <a class="btn-primary text-sm" href="/programacion?modo=editar&fecha_sel={{ dia.fecha }}&horario_sel={{ s.horario }}">+ Agregar</a>
+                    {% endif %}
+                </div>
+                {% for g in s.gente %}
+                <div class="flex justify-between items-center py-1 text-sm">
+                    <span class="nom-asig">{{ g.persona.nombre }} <span style="color:var(--muted)">({{ g.turno.delegacion }})</span></span>
+                    {% if modo != 'foto' and (g.mio or es_fimlm) %}
+                    <form method="post" action="/programacion/quitar">
+                        <input type="hidden" name="turno_id" value="{{ g.turno.id }}">
+                        <button class="text-red-600">Quitar</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% else %}
+                {% if modo != 'foto' %}<p class="text-sm" style="color:var(--muted)">Nadie aún</p>{% endif %}
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </section>
+        {% else %}
+        <p class="text-sm" style="color:var(--muted)">No hay días con gente para la foto. Pasa a Armar semana.</p>
+        {% endfor %}
+        {% endif %}
+    </main>
+
+<script>
+(function(){
+  var btn = document.getElementById("btnCopiarFoto");
+  var box = document.getElementById("foto-cuadro");
+  var msg = document.getElementById("fotoMsg");
+  if (btn && box && window.html2canvas) {
+    btn.addEventListener("click", function(){
+      msg.textContent = "Generando imagen…";
+      var clone = box.cloneNode(true);
+      clone.style.position = "fixed";
+      clone.style.left = "-12000px";
+      clone.style.top = "0";
+      clone.style.width = Math.max(box.offsetWidth, 900) + "px";
+      clone.style.background = "#ffffff";
+      clone.style.color = "#0f172a";
+      clone.style.padding = "24px";
+      clone.querySelectorAll("[style*='min-height']").forEach(function(el){
+        el.style.minHeight = "2rem";
+        el.style.lineHeight = "2rem";
+        el.style.marginBottom = "6px";
+      });
+      clone.querySelectorAll("p.text-xs.font-semibold, p[class*='font-semibold'][class*='text-xs']").forEach(function(el){
+        el.style.marginTop = "12px";
+        el.style.marginBottom = "6px";
+      });
+      document.body.appendChild(clone);
+      html2canvas(clone, {backgroundColor:"#ffffff", scale: 2}).then(function(canvas){
+        document.body.removeChild(clone);
+        canvas.toBlob(function(blob){
+          if (!blob) { msg.textContent = "No se pudo crear la imagen."; return; }
+          if (navigator.clipboard && window.ClipboardItem) {
+            navigator.clipboard.write([new ClipboardItem({"image/png": blob})]).then(function(){
+              msg.textContent = "Imagen copiada. Pégala en WhatsApp.";
+            }).catch(function(){
+              bajar(blob);
+            });
+          } else {
+            bajar(blob);
+          }
+        });
+      }).catch(function(){ if (clone.parentNode) document.body.removeChild(clone); msg.textContent = "No se pudo generar la imagen."; });
+    });
+  }
+  function bajar(blob){
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "programacion-semana.png";
+    a.click();
+    if (msg) msg.textContent = "Tu navegador no dejó copiar. Se descargó la imagen; adjúntala en WhatsApp.";
+  }
+  var hl = new URLSearchParams(location.search).get("hl");
+  if (!hl) return;
+  var el = document.getElementById("slot-" + hl);
+  if (!el) return;
+  el.scrollIntoView({behavior:"smooth", block:"center"});
+  el.style.transition = "box-shadow 0.3s, background 0.3s";
+  el.style.background = "rgba(251,191,36,0.35)";
+  el.style.boxShadow = "0 0 0 3px rgba(251,191,36,0.8)";
+  setTimeout(function(){ el.style.background=""; el.style.boxShadow=""; }, 2200);
+})();
+</script>
+</body>
+</html>

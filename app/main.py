@@ -11,8 +11,18 @@ import tempfile
 from pathlib import Path
 
 from .database import engine, get_db, Base
-from .models import Usuario, Persona, Carga, DatoNacional
-from .auth import create_default_user, authenticate_user, DEFAULT_USER
+from .models import Usuario, Persona, Carga, DatoNacional, Turno, Alerta
+from .auth import (
+    create_default_user,
+    authenticate_user,
+    DEFAULT_USER,
+    es_comunicaciones,
+    ruta_solo_com,
+    DELEGACIONES,
+    hash_password,
+)
+from .punto import semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario, NOMBRES_DIA
+from .festivos import es_festivo
 from .processing import procesar_excel, FUENTES_VALIDAS, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
 
 # Ruta base del proyecto
@@ -68,6 +78,16 @@ def on_startup():
                 conn.execute(sql_text("ALTER TABLE personas ADD COLUMN motivo_detalle VARCHAR(255)"))
                 conn.commit()
                 print("Columna personas.motivo_detalle agregada")
+            ucols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(usuarios)")).fetchall()]
+            if ucols:
+                if "delegacion" not in ucols:
+                    conn.execute(sql_text("ALTER TABLE usuarios ADD COLUMN delegacion VARCHAR(40) DEFAULT 'comunicaciones'"))
+                    conn.commit()
+                    print("Columna usuarios.delegacion agregada")
+                if "activo" not in ucols:
+                    conn.execute(sql_text("ALTER TABLE usuarios ADD COLUMN activo BOOLEAN DEFAULT 1"))
+                    conn.commit()
+                    print("Columna usuarios.activo agregada")
     except Exception as e:
         print(f"Migración: {e}")
 
@@ -81,6 +101,26 @@ def require_login(request: Request):
     if not user:
         return None
     return user
+
+def require_com_user(request: Request):
+    user = require_login(request)
+    if not user:
+        return None, RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    if not es_comunicaciones(request):
+        return None, RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    return user, None
+
+
+
+@app.middleware("http")
+async def solo_comunicaciones(request: Request, call_next):
+    try:
+        path = request.url.path
+        if request.session.get("user") and ruta_solo_com(path) and not es_comunicaciones(request):
+            return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    except Exception:
+        pass
+    return await call_next(request)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -104,8 +144,10 @@ async def login_submit(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    if authenticate_user(db, username, password):
-        request.session["user"] = username
+    cuenta = authenticate_user(db, username, password)
+    if cuenta:
+        request.session["user"] = cuenta.usuario
+        request.session["delegacion"] = cuenta.delegacion or "comunicaciones"
         return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse(
         request, "login.html", {"error": "Usuario o contraseña incorrectos"}
@@ -314,11 +356,16 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         barra_color = "bg-red-500"
         barra_track = "bg-red-50"
 
+    delg = request.session.get("delegacion") or "comunicaciones"
+    alertas = db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.leida == False).order_by(Alerta.id.desc()).all()
+    request.session["n_alertas"] = len(alertas)
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "user": user,
+            "alertas": alertas,
             "total_instaladas": total_instaladas,
             "total_no_instalada": total_no_instalada,
             "meta": meta,
@@ -350,10 +397,9 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_page(request: Request):
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     return templates.TemplateResponse(
         request,
         "upload.html",
@@ -375,10 +421,9 @@ async def upload_submit(
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     # Validaciones básicas
     if fuente not in FUENTES_VALIDAS:
         return templates.TemplateResponse(
@@ -471,10 +516,9 @@ async def upload_submit(
 
 @app.get("/pendiente/{persona_id}", response_class=HTMLResponse)
 async def editar_pendiente_page(request: Request, persona_id: int, db: Session = Depends(get_db)):
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     persona = db.query(Persona).filter(
         Persona.id == persona_id,
         Persona.pendiente_revision == True
@@ -504,10 +548,9 @@ async def editar_pendiente_submit(
 ):
     from .processing import normalizar_celular, normalizar_nombre
 
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     persona = db.query(Persona).filter(
         Persona.id == persona_id,
         Persona.pendiente_revision == True
@@ -561,10 +604,9 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
     from datetime import datetime, timedelta
     from sqlalchemy import func as sqlfunc
 
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     # Total acumulado
     total_instaladas = db.query(Persona).filter(
         Persona.pendiente_revision == False,
@@ -701,10 +743,9 @@ async def eliminar_pendiente(
     persona_id: int,
     db: Session = Depends(get_db),
 ):
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     persona = db.query(Persona).filter(
         Persona.id == persona_id,
         Persona.pendiente_revision == True,
@@ -720,10 +761,9 @@ async def eliminar_pendiente(
 
 @app.get("/seguimiento/{persona_id}", response_class=HTMLResponse)
 async def seguimiento_page(request: Request, persona_id: int, db: Session = Depends(get_db)):
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     persona = db.query(Persona).filter(
         Persona.id == persona_id,
         Persona.estado == "No instalada",
@@ -754,10 +794,9 @@ async def seguimiento_submit(
 ):
     from .processing import normalizar_celular, normalizar_nombre
 
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     persona = db.query(Persona).filter(
         Persona.id == persona_id,
         Persona.estado == "No instalada",
@@ -807,10 +846,9 @@ async def seguimiento_submit(
 
 @app.get("/dato-nacional", response_class=HTMLResponse)
 async def dato_nacional_page(request: Request, db: Session = Depends(get_db)):
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     ultimo = db.query(DatoNacional).order_by(
         DatoNacional.fecha_dato.desc(), DatoNacional.id.desc()
     ).first()
@@ -835,10 +873,9 @@ async def dato_nacional_submit(
 ):
     from datetime import datetime as dt
 
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     try:
         fecha = dt.strptime(fecha_dato, "%Y-%m-%d").date()
     except ValueError:
@@ -872,9 +909,9 @@ async def dato_nacional_submit(
 
 @app.get("/persona/{persona_id}", response_class=HTMLResponse)
 async def editar_persona_page(request: Request, persona_id: int, db: Session = Depends(get_db)):
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
     if not persona:
         return RedirectResponse(url="/personas", status_code=status.HTTP_303_SEE_OTHER)
@@ -895,10 +932,9 @@ async def editar_persona_submit(
 ):
     from .processing import normalizar_celular, normalizar_nombre
 
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
     if not persona:
         return RedirectResponse(url="/personas", status_code=status.HTTP_303_SEE_OTHER)
@@ -957,10 +993,9 @@ async def editar_persona_submit(
 
 @app.post("/persona/{persona_id}/eliminar")
 async def eliminar_persona(request: Request, persona_id: int, db: Session = Depends(get_db)):
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-    persona = db.query(Persona).filter(Persona.id == persona_id).first()
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     if persona:
         db.delete(persona)
         db.commit()
@@ -979,10 +1014,9 @@ async def listar_personas(
 ):
     from datetime import datetime as dt
 
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     query = db.query(Persona)
 
     estado = (estado or "todos").strip().lower()
@@ -1072,10 +1106,9 @@ async def listar_personas(
 
 @app.get("/cargas", response_class=HTMLResponse)
 async def historial_cargas(request: Request, db: Session = Depends(get_db)):
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     cargas = db.query(Carga).order_by(Carga.fecha_carga.desc()).limit(100).all()
 
     return templates.TemplateResponse(
@@ -1098,10 +1131,9 @@ async def crear_backup(request: Request):
     from datetime import datetime
     from .database import DB_PATH
 
-    user = require_login(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
     db_path = Path(DB_PATH)
     if not db_path.exists():
         # Fallback a la ruta local por si no hay variable de entorno
@@ -1122,3 +1154,296 @@ async def crear_backup(request: Request):
         filename=backup_name,
         media_type="application/octet-stream",
     )
+
+
+def _delegacion(request: Request) -> str:
+    return request.session.get("delegacion") or "comunicaciones"
+
+
+@app.get("/programacion", response_class=HTMLResponse)
+async def programacion_ver(request: Request, db: Session = Depends(get_db),
+                           q: str = "", horario_sel: str = "", fecha_sel: str = "",
+                           modo: str = "editar", error: str = "", ok: str = "",
+                           confirmar: str = "", hl: str = ""):
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    from datetime import datetime as dt
+    from .processing import normalizar_celular
+    delg = _delegacion(request)
+    lunes = semana_vigente()
+    dias = dias_semana(lunes)
+    turnos = db.query(Turno).filter(Turno.semana_lunes == lunes).all()
+    personas_map = {p.id: p for p in db.query(Persona).all()} if turnos else {}
+    ids_mios = {t.persona_id for t in db.query(Turno).filter(Turno.delegacion == delg).all()}
+    mis_cols = db.query(Persona).filter(Persona.id.in_(ids_mios)).order_by(Persona.nombre).all() if ids_mios else []
+    busqueda = []
+    if q.strip():
+        like = f"%{q.strip()}%"
+        cel = normalizar_celular(q)
+        qq = db.query(Persona).filter(Persona.nombre.ilike(like))
+        if cel:
+            qq = db.query(Persona).filter((Persona.nombre.ilike(like)) | (Persona.celular == cel))
+        busqueda = qq.order_by(Persona.nombre).limit(20).all()
+    por_dia = []
+    for d in dias:
+        slots = []
+        for h in horarios_del_dia(d):
+            gente = []
+            for t in turnos:
+                if t.fecha == d and t.horario == h:
+                    per = personas_map.get(t.persona_id)
+                    if per:
+                        gente.append({"turno": t, "persona": per, "mio": t.delegacion == delg})
+            slots.append({"horario": h, "etiqueta": etiqueta_horario(h), "gente": gente})
+        por_dia.append({
+            "fecha": d,
+            "nombre": NOMBRES_DIA[d.weekday()],
+            "festivo": es_festivo(d) and d.weekday() < 5,
+            "slots": slots,
+            "tiene": any(s["gente"] for s in slots),
+        })
+    dias_vista = por_dia if modo != "foto" else [x for x in por_dia if x["tiene"]]
+    alertas = db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.leida == False).order_by(Alerta.id.desc()).all()
+    request.session["n_alertas"] = len(alertas)
+    return templates.TemplateResponse(request, "programacion.html", {
+        "user": user, "delg": delg, "es_fimlm": delg == "fimlm",
+        "lunes": lunes, "domingo": dias[-1], "dias": dias_vista, "todos_dias": por_dia,
+        "mis_cols": mis_cols, "busqueda": busqueda, "q": q,
+        "fecha_sel": fecha_sel, "horario_sel": horario_sel, "modo": modo or "editar",
+        "error": error, "ok": ok, "alertas": alertas, "tutorial": not request.session.get("tut_prog"),
+        "confirmar": confirmar, "hl": hl,
+        "busqueda_vacia": bool(q.strip()) and not busqueda,
+    })
+
+
+@app.post("/programacion/tutorial-ok")
+async def programacion_tutorial(request: Request):
+    if require_login(request):
+        request.session["tut_prog"] = True
+    return RedirectResponse(url="/programacion", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/programacion/asignar")
+async def programacion_asignar(
+    request: Request, db: Session = Depends(get_db),
+    persona_id: int = Form(...), fecha: str = Form(...), horario: str = Form(...),
+    confirmar_fimlm: str = Form(""),
+):
+    from datetime import datetime as dt
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    delg = _delegacion(request)
+    try:
+        f = dt.strptime(fecha, "%Y-%m-%d").date()
+    except ValueError:
+        return RedirectResponse(url="/programacion?error=Fecha+inválida", status_code=303)
+    from datetime import timedelta as td
+    lunes = semana_vigente()
+    if not (lunes <= f <= lunes + td(days=6)):
+        return RedirectResponse(url="/programacion?error=Solo+se+edita+la+semana+vigente", status_code=303)
+    if horario not in horarios_del_dia(f):
+        return RedirectResponse(url="/programacion?error=Horario+no+válido+ese+día", status_code=303)
+    persona = db.query(Persona).filter(Persona.id == persona_id).first()
+    if not persona:
+        return RedirectResponse(url="/programacion?error=Persona+no+encontrada", status_code=303)
+    ya = db.query(Turno).filter(Turno.persona_id == persona_id, Turno.fecha == f, Turno.horario == horario).first()
+    if ya:
+        return RedirectResponse(url="/programacion?error=Esa+persona+ya+está+en+ese+horario", status_code=303)
+    if delg != "fimlm":
+        n = db.query(Turno).filter(Turno.persona_id == persona_id, Turno.semana_lunes == lunes).count()
+        if n >= 2:
+            return RedirectResponse(url="/programacion?error=No+se+puede+programar+a+esta+persona:+ya+tiene+el+máximo+de+2+turnos+esta+semana", status_code=303)
+    otros = db.query(Turno).filter(Turno.fecha == f, Turno.horario == horario, Turno.delegacion != "fimlm").all() if delg == "fimlm" else []
+    if delg == "fimlm" and otros and confirmar_fimlm != "si":
+        nombres = []
+        for t in otros:
+            per = db.query(Persona).filter(Persona.id == t.persona_id).first()
+            if per:
+                nombres.append(per.nombre)
+        qs = "&".join([
+            f"fecha_sel={fecha}", f"horario_sel={horario}",
+            f"confirmar={persona_id}",
+            "error=" + ("FIMLM+tomará+el+horario.+Saldrán:+" + ",+".join(nombres)).replace(" ", "+"),
+        ])
+        return RedirectResponse(url=f"/programacion?{qs}", status_code=303)
+    if delg == "fimlm" and otros:
+        from collections import defaultdict
+        por_del = defaultdict(list)
+        for t in otros:
+            per = db.query(Persona).filter(Persona.id == t.persona_id).first()
+            por_del[t.delegacion].append(per.nombre if per else "?")
+            db.delete(t)
+        for ddeleg, noms in por_del.items():
+            db.add(Alerta(
+                para_delegacion=ddeleg, tipo="fimlm_desplazo",
+                texto=f"FIMLM tomó el {f.strftime('%d/%m')} {etiqueta_horario(horario)}. Salieron: {', '.join(noms)}.",
+                leida=False,
+            ))
+    db.add(Turno(persona_id=persona_id, fecha=f, horario=horario, delegacion=delg, semana_lunes=lunes))
+    db.commit()
+    return RedirectResponse(url=f"/programacion?ok=Listo&modo=editar&fecha_sel={fecha}&horario_sel={horario}&hl={fecha}-{horario}", status_code=303)
+
+
+@app.post("/programacion/quitar")
+async def programacion_quitar(request: Request, db: Session = Depends(get_db), turno_id: int = Form(...)):
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    delg = _delegacion(request)
+    turno = db.query(Turno).filter(Turno.id == turno_id).first()
+    if not turno:
+        return RedirectResponse(url="/programacion?error=Turno+no+existe", status_code=303)
+    if turno.delegacion != delg and delg != "fimlm":
+        return RedirectResponse(url="/programacion?error=Solo+quitas+a+los+que+puso+tu+delegación", status_code=303)
+    hl = f"{turno.fecha}-{turno.horario}"
+    db.delete(turno)
+    db.commit()
+    return RedirectResponse(url=f"/programacion?modo=editar&hl={hl}", status_code=303)
+
+
+@app.post("/programacion/alta")
+async def programacion_alta(
+    request: Request, db: Session = Depends(get_db),
+    nombre: str = Form(...), celular: str = Form(...),
+    fecha: str = Form(...), horario: str = Form(...),
+):
+    from .processing import normalizar_celular, normalizar_nombre
+    from datetime import datetime as dt
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    delg = _delegacion(request)
+    cel = normalizar_celular(celular)
+    nom = normalizar_nombre(nombre)
+    if not cel or not nom:
+        return RedirectResponse(url="/programacion?error=Nombre+y+celular+de+10+dígitos", status_code=303)
+    per = db.query(Persona).filter(Persona.celular == cel).first()
+    if not per:
+        per = Persona(nombre=nom, celular=cel, estado="No instalada", pendiente_revision=False, fuente_ultima="Programación")
+        db.add(per)
+        db.commit()
+        db.refresh(per)
+        db.add(Alerta(para_delegacion="comunicaciones", tipo="alta_nueva",
+                      texto=f"Persona nueva registrada desde la delegación {delg}: {nom} ({cel}). Revisar si ya tiene la App.", leida=False))
+        db.commit()
+    # reutilizar asignar
+    form_redirect = await programacion_asignar(request, db, persona_id=per.id, fecha=fecha, horario=horario, confirmar_fimlm="")
+    return form_redirect
+
+
+def _exige_com(request: Request):
+    user = require_login(request)
+    if not user:
+        return None, RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    if not es_comunicaciones(request):
+        return None, RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    return user, None
+
+
+@app.get("/usuarios", response_class=HTMLResponse)
+async def usuarios_lista(request: Request, db: Session = Depends(get_db), ok: str = "", error: str = ""):
+    user, redir = _exige_com(request)
+    if redir:
+        return redir
+    cuentas = db.query(Usuario).order_by(Usuario.usuario.asc()).all()
+    return templates.TemplateResponse(
+        request,
+        "usuarios.html",
+        {
+            "user": user,
+            "cuentas": cuentas,
+            "delegaciones": DELEGACIONES,
+            "ok": ok,
+            "error": error,
+        },
+    )
+
+
+@app.post("/usuarios", response_class=HTMLResponse)
+async def usuarios_crear(
+    request: Request,
+    db: Session = Depends(get_db),
+    username: str = Form(...),
+    password: str = Form(...),
+    delegacion: str = Form(...),
+):
+    user, redir = _exige_com(request)
+    if redir:
+        return redir
+    username = (username or "").strip().lower()
+    delegacion = (delegacion or "").strip().lower()
+    if not username or not password:
+        return RedirectResponse(url="/usuarios?error=Usuario+y+contraseña+son+obligatorios", status_code=status.HTTP_303_SEE_OTHER)
+    if delegacion not in DELEGACIONES:
+        return RedirectResponse(url="/usuarios?error=Delegación+no+válida", status_code=status.HTTP_303_SEE_OTHER)
+    if db.query(Usuario).filter(Usuario.usuario == username).first():
+        return RedirectResponse(url="/usuarios?error=Ese+usuario+ya+existe", status_code=status.HTTP_303_SEE_OTHER)
+    db.add(Usuario(
+        usuario=username,
+        password_hash=hash_password(password),
+        delegacion=delegacion,
+        activo=True,
+    ))
+    db.commit()
+    return RedirectResponse(url="/usuarios?ok=Usuario+creado", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/usuarios/{usuario_id}/desactivar")
+async def usuarios_desactivar(request: Request, usuario_id: int, db: Session = Depends(get_db)):
+    user, redir = _exige_com(request)
+    if redir:
+        return redir
+    cuenta = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not cuenta:
+        return RedirectResponse(url="/usuarios?error=No+existe", status_code=status.HTTP_303_SEE_OTHER)
+    if cuenta.usuario == user or (cuenta.delegacion or "") == "comunicaciones":
+        return RedirectResponse(url="/usuarios?error=La+cuenta+de+Comunicaciones+no+se+desactiva", status_code=status.HTTP_303_SEE_OTHER)
+    cuenta.activo = False
+    db.commit()
+    return RedirectResponse(url="/usuarios?ok=Usuario+desactivado", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/usuarios/{usuario_id}/activar")
+async def usuarios_activar(request: Request, usuario_id: int, db: Session = Depends(get_db)):
+    user, redir = _exige_com(request)
+    if redir:
+        return redir
+    cuenta = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if cuenta:
+        cuenta.activo = True
+        db.commit()
+    return RedirectResponse(url="/usuarios?ok=Usuario+activado", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/usuarios/{usuario_id}/clave")
+async def usuarios_clave(
+    request: Request,
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    password: str = Form(...),
+):
+    user, redir = _exige_com(request)
+    if redir:
+        return redir
+    if not (password or "").strip():
+        return RedirectResponse(url="/usuarios?error=La+clave+no+puede+ir+vacía", status_code=status.HTTP_303_SEE_OTHER)
+    cuenta = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not cuenta:
+        return RedirectResponse(url="/usuarios?error=No+existe", status_code=status.HTTP_303_SEE_OTHER)
+    cuenta.password_hash = hash_password(password.strip())
+    db.commit()
+    return RedirectResponse(url="/usuarios?ok=Clave+restablecida.+Compártela+por+WhatsApp+al+grupo", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/alertas/leer")
+async def alertas_leer(request: Request, db: Session = Depends(get_db)):
+    user = require_login(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    delg = request.session.get("delegacion") or "comunicaciones"
+    db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.leida == False).update({"leida": True})
+    db.commit()
+    request.session["n_alertas"] = 0
+    return RedirectResponse(url="/dashboard", status_code=303)

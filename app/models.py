@@ -9,6 +9,8 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     usuario = Column(String(50), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
+    delegacion = Column(String(40), nullable=False, default="comunicaciones")
+    activo = Column(Boolean, default=True, nullable=False)
 
 
 class Persona(Base):
@@ -51,3 +53,26 @@ class DatoNacional(Base):
     total_reportado = Column(Integer, nullable=False)
     nota = Column(String(255), nullable=True)
     fecha_registro = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Turno(Base):
+    __tablename__ = "turnos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    persona_id = Column(Integer, nullable=False, index=True)
+    fecha = Column(Date, nullable=False, index=True)
+    horario = Column(String(5), nullable=False)
+    delegacion = Column(String(40), nullable=False)
+    semana_lunes = Column(Date, nullable=False, index=True)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Alerta(Base):
+    __tablename__ = "alertas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    para_delegacion = Column(String(40), nullable=False, index=True)
+    tipo = Column(String(40), nullable=False)
+    texto = Column(String(400), nullable=False)
+    leida = Column(Boolean, default=False, nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now())
