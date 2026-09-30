@@ -1,6 +1,6 @@
-# Censo · dashboard e informe semanal
+# Sintonía
 
-Aplicación interna (Python · FastAPI) para que un equipo de operación deje de cruzar listados a mano y vea, en un solo lugar, el avance del censo de instalación de una app.
+Aplicación interna (Python · FastAPI) para coordinar equipos: censo de instalación, programación del punto y avance frente a sede nacional.
 
 Resuelve duplicados (el celular es el identificador), compara el registro interno con el dato oficial de sede nacional y genera un informe semanal listo para pegar en WhatsApp. El acceso es con login: es un **demo operativo**, no un sitio abierto.
 

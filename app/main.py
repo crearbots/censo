@@ -31,7 +31,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Crear tablas
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Censo App", docs_url=None, redoc_url=None)
+app = FastAPI(title="Sintonía", docs_url=None, redoc_url=None)
 
 # Middleware de sesión (clave fija desde variable de entorno en producción)
 SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_hex(32))
@@ -696,7 +696,7 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
             ]
 
     lineas = [
-        "📊 *Informe Semanal – Censo App*",
+        "📊 *Informe Semanal – Sintonía*",
         f"📅 Semana: {rango_semana}",
         "",
         f"🎯 *Avance del equipo ({etiqueta_avance})*",
@@ -1124,6 +1124,8 @@ async def historial_cargas(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/backup")
 async def crear_backup(request: Request):
+    return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+    # Respaldo solo por Railway. Código histórico debajo no se ejecuta.
     """Descarga una copia de la base de datos (usa DATABASE_PATH en producción)."""
     import shutil
     import tempfile

@@ -3,11 +3,11 @@
 <header class="bg-blue-800 text-white shadow sticky top-0 z-20">
     <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-2">
         <div class="min-w-0">
-            <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Censo App</a>
+            <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Sintonía</a>
             <p class="text-blue-200 text-xs hidden sm:block">{{ delg|replace('_',' ')|capitalize }}</p>
         </div>
         <button type="button" id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="app-nav">Menú</button>
-        <nav id="app-nav" class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full sm:w-auto justify-start sm:justify-end">
+        <nav id="app-nav" class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full justify-start lg:justify-end">
             <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 {% if activo == 'inicio' %}bg-blue-700{% endif %}">Inicio</a>
             <a href="/programacion" class="px-2.5 py-1.5 rounded hover:bg-blue-700 {% if activo == 'programacion' %}bg-blue-700{% endif %}">Programación</a>
             {% if es_com %}

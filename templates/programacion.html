@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Programación - Censo App</title>
+    <title>Programación - Sintonía</title>
     <link rel="stylesheet" href="/static/css/theme.css">
     <script src="/static/js/theme.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -55,7 +55,7 @@
                     <input type="hidden" name="persona_id" value="{{ p.id }}">
                     <input type="hidden" name="fecha" value="{{ fecha_sel }}">
                     <input type="hidden" name="horario" value="{{ horario_sel }}">
-                    <button class="px-3 py-2 rounded-lg border text-left">{{ p.nombre }}<br><span class="text-xs" style="color:var(--muted)">{{ p.celular }}</span></button>
+                    <button class="px-3 py-2 rounded-lg border text-left">{{ p.nombre }}{% if delg == 'comunicaciones' %}<br><span class="text-xs" style="color:var(--muted)">{{ p.celular }}</span>{% endif %}</button>
                 </form>
                 {% else %}
                 <p class="text-sm" style="color:var(--muted)">Aún no hay tarjetas. Busca a la persona.</p>
@@ -73,7 +73,7 @@
                 <input type="hidden" name="persona_id" value="{{ p.id }}">
                 <input type="hidden" name="fecha" value="{{ fecha_sel }}">
                 <input type="hidden" name="horario" value="{{ horario_sel }}">
-                <button class="btn-ghost w-full text-left">{{ p.nombre }} · {{ p.celular }}</button>
+                <button class="btn-ghost w-full text-left">{{ p.nombre }}{% if delg == 'comunicaciones' %} · {{ p.celular }}{% endif %}</button>
             </form>
             {% endfor %}
             {% if busqueda_vacia %}

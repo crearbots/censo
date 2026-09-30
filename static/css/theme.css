@@ -208,7 +208,7 @@ header #theme-toggle {
   font-size: 14px;
   cursor: pointer;
 }
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .nav-toggle { display: inline-flex !important; }
   header > div {
     display: flex;
@@ -217,8 +217,11 @@ header #theme-toggle {
   }
   header nav {
     display: none !important;
-    width: 100%;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 0 100% !important;
     flex-direction: column !important;
+    flex-wrap: nowrap !important;
     align-items: stretch !important;
     justify-content: flex-start !important;
     padding-top: 0.75rem;
@@ -229,14 +232,14 @@ header #theme-toggle {
   }
   header nav a,
   header nav button {
-    display: block;
+    display: block !important;
     text-align: left !important;
-    width: 100%;
+    width: 100% !important;
   }
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .nav-toggle { display: none !important; }
-  header nav { display: flex !important; }
+  header nav { display: flex !important; flex-wrap: wrap; }
 }
 
 .empty-state {
