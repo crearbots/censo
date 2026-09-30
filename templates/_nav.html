@@ -1,26 +1,62 @@
 {% set delg = request.session.get('delegacion', 'comunicaciones') %}
 {% set es_com = delg == 'comunicaciones' %}
-<header class="bg-blue-800 text-white shadow sticky top-0 z-20">
-    <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap justify-between items-center gap-2">
-        <div class="min-w-0">
-            <a href="/dashboard" class="text-lg sm:text-xl font-bold hover:text-blue-100">Sintonía</a>
-            <p class="text-blue-200 text-xs hidden sm:block">{{ delg|replace('_',' ')|capitalize }}</p>
+<header class="site-header">
+    <div class="header-inner">
+        <div class="brand">
+            <a href="/dashboard" class="brand-name">Sintonía</a>
+            <p class="brand-sub">{{ delg|replace('_',' ')|capitalize }}</p>
         </div>
-        <button type="button" id="nav-toggle" class="nav-toggle" aria-expanded="false" aria-controls="app-nav">Menú</button>
-        <nav id="app-nav" class="flex flex-wrap items-center gap-0.5 text-xs sm:text-sm w-full justify-start lg:justify-end">
-            <a href="/dashboard" class="px-2.5 py-1.5 rounded hover:bg-blue-700 {% if activo == 'inicio' %}bg-blue-700{% endif %}">Inicio</a>
-            <a href="/programacion" class="px-2.5 py-1.5 rounded hover:bg-blue-700 {% if activo == 'programacion' %}bg-blue-700{% endif %}">Programación</a>
+
+        <nav class="nav-primary" aria-label="Principal">
+            <a href="/dashboard" class="nav-link {% if activo == 'inicio' %}is-active{% endif %}">Inicio</a>
+            <a href="/programacion" class="nav-link {% if activo == 'programacion' %}is-active{% endif %}">Programación</a>
             {% if es_com %}
-            <a href="/personas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 {% if activo == 'personas' %}bg-blue-700{% endif %}">Personas</a>
-            <a href="/cargas" class="px-2.5 py-1.5 rounded hover:bg-blue-700 {% if activo == 'cargas' %}bg-blue-700{% endif %}">Cargas</a>
-            <a href="/podio" class="px-2.5 py-1.5 rounded hover:bg-blue-700 {% if activo == 'podio' %}bg-blue-700{% endif %}">Podio</a>
-            <a href="/config-punto" class="px-2.5 py-1.5 rounded hover:bg-blue-700 {% if activo == 'config' %}bg-blue-700{% endif %}">Calendario</a>
-            <a href="/usuarios" class="px-2.5 py-1.5 rounded hover:bg-blue-700 {% if activo == 'usuarios' %}bg-blue-700{% endif %}">Usuarios</a>
-            <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener" class="px-2.5 py-1.5 rounded hover:bg-blue-700">Consulta oficial</a>
+            <a href="/personas" class="nav-link {% if activo == 'personas' %}is-active{% endif %}">Personas</a>
+            <a href="/config-punto" class="nav-link {% if activo == 'config' %}is-active{% endif %}">Calendario</a>
+            <a href="/usuarios" class="nav-link {% if activo == 'usuarios' %}is-active{% endif %}">Usuarios</a>
+            <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener" class="nav-link">Consulta oficial</a>
             {% endif %}
-            <a href="/dashboard#caja-alertas" id="btn-campana" data-n="{{ request.session.get('n_alertas') or 0 }}" class="px-2 py-1.5 rounded hover:bg-blue-700 relative" title="Alertas">🔔{% if request.session.get('n_alertas') %}<span class="absolute -top-0.5 -right-0.5 bg-amber-400 text-slate-900 text-[10px] rounded-full px-1">{{ request.session.get('n_alertas') }}</span>{% endif %}</a>
-            <button type="button" id="theme-toggle" data-compact="1" class="px-2 py-1.5" title="Cambiar tema" aria-label="Cambiar tema">☀</button>
-            <a href="/logout" class="px-2.5 py-1.5 rounded hover:bg-blue-700 text-blue-200">Salir</a>
         </nav>
+
+        <div class="nav-utils">
+            <a href="/dashboard#caja-alertas" id="btn-campana" data-n="{{ request.session.get('n_alertas') or 0 }}" class="nav-icon" title="Alertas">🔔{% if request.session.get('n_alertas') %}<span class="nav-badge">{{ request.session.get('n_alertas') }}</span>{% endif %}</a>
+            <button type="button" id="theme-toggle" data-compact="1" class="nav-icon" title="Cambiar tema" aria-label="Cambiar tema">☀️</button>
+            <a href="/logout" class="nav-link nav-salir">Salir</a>
+        </div>
     </div>
 </header>
+
+<nav class="bottom-nav" aria-label="Móvil">
+    <a href="/dashboard" class="bottom-item {% if activo == 'inicio' %}is-active{% endif %}">
+        <span class="bottom-ico">🏠</span>
+        <span>Inicio</span>
+    </a>
+    <a href="/programacion" class="bottom-item {% if activo == 'programacion' %}is-active{% endif %}">
+        <span class="bottom-ico">📅</span>
+        <span>Programación</span>
+    </a>
+    {% if es_com %}
+    <a href="/personas" class="bottom-item {% if activo == 'personas' %}is-active{% endif %}">
+        <span class="bottom-ico">👥</span>
+        <span>Personas</span>
+    </a>
+    {% endif %}
+    <button type="button" id="btn-mas" class="bottom-item" aria-expanded="false" aria-controls="mas-sheet">
+        <span class="bottom-ico">☰</span>
+        <span>Más</span>
+    </button>
+</nav>
+
+<div id="mas-sheet" class="mas-sheet" hidden>
+    <button type="button" class="mas-backdrop" id="mas-cerrar-bg" aria-label="Cerrar"></button>
+    <div class="mas-panel" role="dialog" aria-label="Más opciones">
+        <p class="mas-title">Más</p>
+        {% if es_com %}
+        <a href="/config-punto">Calendario</a>
+        <a href="/usuarios">Usuarios</a>
+        <a href="https://descargas-app-infomira.netlify.app/" target="_blank" rel="noopener">Consulta oficial</a>
+        {% endif %}
+        <a href="/logout" class="mas-salir">Salir</a>
+        <button type="button" id="mas-cerrar" class="btn-ghost w-full mt-2">Cerrar</button>
+    </div>
+</div>

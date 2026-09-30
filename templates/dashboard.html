@@ -205,7 +205,7 @@
         <!-- Seguimiento No instalada (solo si hay) -->
         {% if es_com and seguimiento_no_instalada %}
         <div class="bg-white rounded-xl shadow p-6 mb-8 border border-gray-100">
-            <h3 class="text-lg font-medium text-gray-800 mb-4">Seguimiento personas que no han instalado la App (definir el motivo)</h3>
+            <h3 class="text-lg font-medium text-gray-800 mb-4">Personas que no han instalado la app</h3>
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead class="bg-gray-50">
@@ -248,21 +248,11 @@
             <a href="/informe" class="btn-success">
                 Informe WhatsApp
             </a>
-            <p class="text-xs text-gray-400">El resto de opciones está en el menú superior.</p>
         </div>
         {% endif %}
     </main>
-
-        <footer class="text-center text-xs text-gray-400 py-6 px-3">
-        Sintonía
-        · Hecho con amor
-        <svg class="inline-block w-3.5 h-3.5 text-blue-500 align-text-bottom mx-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12 21s-6.7-4.35-9.33-8.2C.8 10.2 1.1 6.8 3.4 5.05 5.3 3.6 7.85 4 9.2 5.55L12 8.6l2.8-3.05C16.15 4 18.7 3.6 20.6 5.05c2.3 1.75 2.6 5.15.73 7.75C18.7 16.65 12 21 12 21z"/>
-        </svg>
-        · Gestión Documental
-    </footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    {% include "_footer.html" %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
         {% if chart_labels %}
         const allLabels = {{ chart_labels | tojson }};
@@ -388,7 +378,7 @@
                             const ritmo = (delta / dias).toFixed(1);
                             let extra = '';
                             if (ds === 1) {
-                                extra = '<p>Faltan ' + Math.max(0, 500 - v2) + ' para la meta de 500.</p>';
+                                extra = '<p>Faltan ' + Math.max(0, 975 - v2) + ' para la meta de 975.</p>';
                             }
                             const fill = sl.labels.map((_, idx) => (idx >= a && idx <= b) ? serie[idx] : null);
                             chartCenso.data.datasets = chartCenso.data.datasets.slice(0, 2);

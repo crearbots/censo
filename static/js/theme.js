@@ -4,34 +4,45 @@
   var theme = saved || "dark";
   document.documentElement.setAttribute("data-theme", theme);
 
-  function label(t, compact) {
-    if (compact) return t === "dark" ? "☀" : "☾";
-    return t === "dark" ? "Modo claro" : "Modo oscuro";
+  function label(t) {
+    return t === "dark" ? "☀️" : "🌙";
   }
 
   document.addEventListener("DOMContentLoaded", function () {
     var btn = document.getElementById("theme-toggle");
     if (!btn) return;
-    var compact = btn.getAttribute("data-compact") === "1" || btn.closest("header") !== null;
-    btn.textContent = label(theme, compact);
+    btn.textContent = label(theme);
     btn.addEventListener("click", function () {
       theme = theme === "dark" ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", theme);
       localStorage.setItem(key, theme);
-      btn.textContent = label(theme, compact);
+      btn.textContent = label(theme);
     });
   });
 })();
 
 document.addEventListener("DOMContentLoaded", function () {
-  var btn = document.getElementById("nav-toggle");
-  var nav = document.querySelector("header nav");
-  if (!btn || !nav) return;
+  var btn = document.getElementById("btn-mas");
+  var sheet = document.getElementById("mas-sheet");
+  if (!btn || !sheet) return;
+  function openSheet(open) {
+    if (open) {
+      sheet.hidden = false;
+      sheet.classList.add("is-open");
+      btn.setAttribute("aria-expanded", "true");
+    } else {
+      sheet.hidden = true;
+      sheet.classList.remove("is-open");
+      btn.setAttribute("aria-expanded", "false");
+    }
+  }
   btn.addEventListener("click", function () {
-    var open = nav.classList.toggle("is-open");
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
-    btn.textContent = open ? "Cerrar" : "Menú";
+    openSheet(sheet.hidden);
   });
+  var c1 = document.getElementById("mas-cerrar");
+  var c2 = document.getElementById("mas-cerrar-bg");
+  if (c1) c1.addEventListener("click", function () { openSheet(false); });
+  if (c2) c2.addEventListener("click", function () { openSheet(false); });
 });
 
 (function () {
@@ -58,34 +69,13 @@ document.addEventListener("DOMContentLoaded", function () {
     } catch (e) {}
   }
 
-  function cerrarMenu() {
-    var nav = document.querySelector("header nav");
-    var btn = document.getElementById("nav-toggle");
-    if (nav) nav.classList.remove("is-open");
-    if (btn) {
-      btn.setAttribute("aria-expanded", "false");
-      btn.textContent = "Menú";
-    }
-  }
-
   document.addEventListener("DOMContentLoaded", function () {
     var campana = document.getElementById("btn-campana");
     var n = campana ? parseInt(campana.getAttribute("data-n") || "0", 10) : 0;
-
-    function irAlertas(ev) {
-      var dest = document.getElementById("caja-alertas");
-      if (dest && location.pathname.indexOf("/dashboard") === 0) {
-        if (ev) ev.preventDefault();
-        cerrarMenu();
-        dest.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else {
-        cerrarMenu();
-      }
+    function irAlertas() {
       if (n > 0) chime();
     }
-
     if (campana) campana.addEventListener("click", irAlertas);
-
     if (n > 0 && !sessionStorage.getItem("censo-alerta-sonido")) {
       var unlock = function () {
         sessionStorage.setItem("censo-alerta-sonido", "1");

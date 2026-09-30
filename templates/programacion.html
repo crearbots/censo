@@ -25,6 +25,9 @@
             <button type="button" id="btnCopiarFoto" class="btn-success text-sm">Copiar imagen para WhatsApp</button>
             {% endif %}
             <button type="button" onclick="document.getElementById('guia').classList.remove('hidden')" class="btn-ghost text-sm">¿Cómo hago la programación?</button>
+            {% if request.session.get('delegacion') == 'comunicaciones' %}
+            <a href="/podio" class="btn-ghost text-sm">Podio del año</a>
+            {% endif %}
         </div>
         <p class="text-sm mb-4">{% if modo == 'foto' %}Esta vista es para la captura. No hay botones de editar.{% else %}Estás armando la semana. Toca + Agregar en un horario.{% endif %}</p>
         <div id="guia" class="hidden bg-white rounded-xl shadow p-4 mb-4">
@@ -207,5 +210,6 @@
   setTimeout(function(){ el.style.background=""; el.style.boxShadow=""; }, 2200);
 })();
 </script>
+    {% include "_footer.html" %}
 </body>
 </html>

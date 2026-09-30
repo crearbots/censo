@@ -12,6 +12,7 @@
     {% set activo = "podio" %}
     {% include "_nav.html" %}
     <main class="max-w-4xl mx-auto px-4 py-8">
+        <p class="text-center mb-2"><a href="/programacion" class="text-blue-600 text-sm">← Programación</a></p>
         <p class="text-center text-xs tracking-[0.25em] uppercase mb-1" style="color:var(--muted)">Colaboradores del año {{ anio }}</p>
         <h1 class="text-3xl font-bold text-center mb-2">Podio Sintonía</h1>
         <p class="text-center text-sm mb-8" style="color:var(--muted)">Turnos de semanas ya cerradas. Toca un nombre para ver en qué delegaciones apoyó.</p>
@@ -71,5 +72,6 @@
             {% endfor %}
         </ol>
     </main>
+    {% include "_footer.html" %}
 </body>
 </html>

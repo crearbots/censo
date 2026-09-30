@@ -195,7 +195,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
     pendientes = pendientes_celular  # compat
 
-    meta = 500
+    meta = 975
 
     # Título de periodo automático (mes actual)
     MESES_TITULO = {
@@ -616,7 +616,7 @@ async def generar_informe(request: Request, db: Session = Depends(get_db)):
         Persona.estado == "Instalada"
     ).count()
 
-    meta = 500
+    meta = 975
 
     # Semana actual (lunes a domingo) — cruza meses sin problema
     hoy = datetime.now().date()
