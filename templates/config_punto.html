@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Punto de información - Sintonía</title>
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    {% set activo = "config" %}
+    {% include "_nav.html" %}
+    <main class="max-w-xl mx-auto px-4 py-8">
+        <h1 class="text-2xl font-semibold mb-1">Calendario del punto</h1>
+        <p class="text-sm mb-6" style="color:var(--muted)">Esto aplica a Política, Juventudes, Electoral y Comunicaciones. FIMLM no tiene este límite.</p>
+        {% if ok %}<p class="mb-3 text-sm" style="color:var(--success)">{{ ok }}</p>{% endif %}
+        {% if error %}<p class="alert-error mb-3">{{ error }}</p>{% endif %}
+        <form method="post" action="/config-punto" class="bg-white rounded-xl shadow p-5 space-y-4 mb-8">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm mb-1">Inicio de vigencia</label>
+                    <input type="date" name="vigencia_inicio" class="w-full px-3 py-2 border rounded-md"
+                           value="{{ cfg.vigencia_inicio.isoformat() if cfg.vigencia_inicio else '' }}">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Fin de vigencia</label>
+                    <input type="date" name="vigencia_fin" class="w-full px-3 py-2 border rounded-md"
+                           value="{{ cfg.vigencia_fin.isoformat() if cfg.vigencia_fin else '' }}">
+                </div>
+            </div>
+            <p class="text-sm font-medium">Días de lunes a sábado</p>
+            <div class="grid grid-cols-3 gap-2 text-sm">
+                <label class="flex items-center gap-2"><input type="checkbox" name="lun" {% if cfg.lun %}checked{% endif %}> Lunes</label>
+                <label class="flex items-center gap-2"><input type="checkbox" name="mar" {% if cfg.mar %}checked{% endif %}> Martes</label>
+                <label class="flex items-center gap-2"><input type="checkbox" name="mie" {% if cfg.mie %}checked{% endif %}> Miércoles</label>
+                <label class="flex items-center gap-2"><input type="checkbox" name="jue" {% if cfg.jue %}checked{% endif %}> Jueves</label>
+                <label class="flex items-center gap-2"><input type="checkbox" name="vie" {% if cfg.vie %}checked{% endif %}> Viernes</label>
+                <label class="flex items-center gap-2"><input type="checkbox" name="sab" {% if cfg.sab %}checked{% endif %}> Sábado</label>
+            </div>
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="confirmar_bajas" value="si">
+                Sí, quitar a quienes ya estaban esos días (semana actual y siguientes)
+            </label>
+            <button class="btn-primary">Guardar</button>
+        </form>
+        <div class="bg-white rounded-xl shadow p-5">
+            <h2 class="font-medium mb-2">Domingos habilitados</h2>
+            <p class="text-sm mb-3" style="color:var(--muted)">DEL solo programa el domingo si la fecha está en esta lista.</p>
+            <form method="post" action="/config-punto/domingo" class="flex gap-2 mb-4">
+                <input type="date" name="fecha" required class="flex-1 px-3 py-2 border rounded-md">
+                <button class="btn-primary">Agregar domingo</button>
+            </form>
+            {% for d in domingos %}
+            <form method="post" action="/config-punto/domingo/{{ d.id }}/quitar" class="flex justify-between items-center py-1 text-sm">
+                <span>{{ d.fecha.strftime('%A %d/%m/%Y') }}</span>
+                <button class="text-red-600">Quitar</button>
+            </form>
+            {% else %}
+            <p class="text-sm" style="color:var(--muted)">Ningún domingo habilitado.</p>
+            {% endfor %}
+        </div>
+    </main>
+</body>
+</html>

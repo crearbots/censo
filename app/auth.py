@@ -26,6 +26,8 @@ COM_ONLY_PREFIXES = (
     "/dato-nacional",
     "/backup",
     "/usuarios",
+    "/config-punto",
+    "/podio",
 )
 
 

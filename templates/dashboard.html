@@ -219,7 +219,7 @@
                         {% for p in seguimiento_no_instalada %}
                         <tr class="border-t">
                             <td class="px-4 py-2">{{ p.nombre }}</td>
-                            <td class="px-4 py-2 text-gray-500">{% if p.pendiente_revision %}Sin celular{% else %}{{ p.celular }}{% endif %}</td>
+                            <td class="px-4 py-2 text-gray-500">{% if p.pendiente_revision %}Sin celular{% elif p.celular and p.celular|length == 10 %}{{ p.celular[:3] }}••••{{ p.celular[-2:] }}{% else %}{{ p.celular }}{% endif %}</td>
                             <td class="px-4 py-2 sticky-actions">
                                 <div class="flex flex-wrap gap-3">
                                     <a href="/seguimiento/{{ p.id }}" class="text-indigo-600 hover:underline text-sm font-medium">Asignar motivo</a>

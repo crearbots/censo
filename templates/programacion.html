@@ -14,6 +14,9 @@
     {% include "_nav.html" %}
     <main class="max-w-7xl mx-auto px-3 py-6">
         <h1 class="text-2xl font-semibold">Punto de información</h1>
+        {% if punto_apagado %}
+        <p class="alert-error my-4">El punto de información no está habilitado para programar.</p>
+        {% endif %}
         <p class="text-sm mb-3" style="color:var(--muted)">Semana {{ lunes.strftime('%d/%m') }} – {{ domingo.strftime('%d/%m/%Y') }}</p>
         <div class="flex flex-wrap gap-2 mb-4">
             <a href="/programacion?modo=editar" class="px-4 py-2 rounded-full text-sm font-medium {% if modo != 'foto' %}bg-amber-500 text-slate-900{% else %}bg-slate-600 text-white{% endif %}">Armar semana</a>
@@ -55,7 +58,7 @@
                     <input type="hidden" name="persona_id" value="{{ p.id }}">
                     <input type="hidden" name="fecha" value="{{ fecha_sel }}">
                     <input type="hidden" name="horario" value="{{ horario_sel }}">
-                    <button class="px-3 py-2 rounded-lg border text-left">{{ p.nombre }}{% if delg == 'comunicaciones' %}<br><span class="text-xs" style="color:var(--muted)">{{ p.celular }}</span>{% endif %}</button>
+                    <button class="px-3 py-2 rounded-lg border text-left {% if puesto.get(p.id, 99) <= 10 %}metal-oro{% elif puesto.get(p.id, 99) <= 20 %}metal-plata{% elif puesto.get(p.id, 99) <= 30 %}metal-bronce{% endif %}">{{ p.nombre }}</button>
                 </form>
                 {% else %}
                 <p class="text-sm" style="color:var(--muted)">Aún no hay tarjetas. Busca a la persona.</p>
@@ -73,7 +76,7 @@
                 <input type="hidden" name="persona_id" value="{{ p.id }}">
                 <input type="hidden" name="fecha" value="{{ fecha_sel }}">
                 <input type="hidden" name="horario" value="{{ horario_sel }}">
-                <button class="btn-ghost w-full text-left">{{ p.nombre }}{% if delg == 'comunicaciones' %} · {{ p.celular }}{% endif %}</button>
+                <button class="btn-ghost w-full text-left">{{ p.nombre }}</button>
             </form>
             {% endfor %}
             {% if busqueda_vacia %}
@@ -123,7 +126,7 @@
                 </div>
                 {% for g in s.gente %}
                 <div class="flex justify-between items-center py-1 text-sm">
-                    <span class="nom-asig">{{ g.persona.nombre }} <span style="color:var(--muted)">({{ g.turno.delegacion }})</span></span>
+                    <span class="nom-asig {% if puesto.get(g.persona.id, 99) <= 10 %}metal-oro{% elif puesto.get(g.persona.id, 99) <= 20 %}metal-plata{% elif puesto.get(g.persona.id, 99) <= 30 %}metal-bronce{% endif %}" style="padding:2px 8px;border-radius:8px;display:inline-block;">{{ g.persona.nombre }} <span style="opacity:.7">({{ g.turno.delegacion }})</span></span>
                     {% if modo != 'foto' and (g.mio or es_fimlm) %}
                     <form method="post" action="/programacion/quitar">
                         <input type="hidden" name="turno_id" value="{{ g.turno.id }}">

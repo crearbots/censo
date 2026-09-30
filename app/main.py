@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 from .database import engine, get_db, Base
-from .models import Usuario, Persona, Carga, DatoNacional, Turno, Alerta
+from .models import Usuario, Persona, Carga, DatoNacional, Turno, Alerta, ConfigPunto, DomingoPunto
 from .auth import (
     create_default_user,
     authenticate_user,
@@ -21,7 +21,7 @@ from .auth import (
     DELEGACIONES,
     hash_password,
 )
-from .punto import semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario, NOMBRES_DIA
+from .punto import semana_vigente, dias_semana, horarios_del_dia, etiqueta_horario, NOMBRES_DIA, obtener_config, dia_permitido, punto_apagado_para, generar_alertas_festivo, generar_alertas_domingo, ranking_anio
 from .festivos import es_festivo
 from .processing import procesar_excel, FUENTES_VALIDAS, EQUIPOS_CARGA, MOTIVOS_NO_INSTALADA
 
@@ -93,6 +93,7 @@ def on_startup():
 
     db = next(get_db())
     create_default_user(db)
+    obtener_config(db)
     db.close()
 
 
@@ -168,6 +169,8 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     user = require_login(request)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    generar_alertas_festivo(db)
+    generar_alertas_domingo(db)
 
     total_instaladas = db.query(Persona).filter(
         Persona.pendiente_revision == False,
@@ -1173,12 +1176,35 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
     from datetime import datetime as dt
     from .processing import normalizar_celular
     delg = _delegacion(request)
+    generar_alertas_festivo(db)
+    generar_alertas_domingo(db)
     lunes = semana_vigente()
     dias = dias_semana(lunes)
     turnos = db.query(Turno).filter(Turno.semana_lunes == lunes).all()
     personas_map = {p.id: p for p in db.query(Persona).all()} if turnos else {}
     ids_mios = {t.persona_id for t in db.query(Turno).filter(Turno.delegacion == delg).all()}
-    mis_cols = db.query(Persona).filter(Persona.id.in_(ids_mios)).order_by(Persona.nombre).all() if ids_mios else []
+    mis_cols = db.query(Persona).filter(Persona.id.in_(ids_mios)).all() if ids_mios else []
+    cerrados = db.query(Turno).filter(Turno.delegacion == delg, Turno.semana_lunes < lunes).all()
+    anio = lunes.year
+    score_hora = {}
+    score_anio = {}
+    wd_sel = None
+    try:
+        from datetime import datetime as _dt
+        if fecha_sel and horario_sel:
+            wd_sel = _dt.strptime(fecha_sel, "%Y-%m-%d").date().weekday()
+    except ValueError:
+        wd_sel = None
+    for ct in cerrados:
+        if ct.fecha.year == anio:
+            score_anio[ct.persona_id] = score_anio.get(ct.persona_id, 0) + 1
+        if wd_sel is not None and ct.fecha.weekday() == wd_sel and ct.horario == horario_sel:
+            score_hora[ct.persona_id] = score_hora.get(ct.persona_id, 0) + 1
+    mis_cols.sort(key=lambda p: (
+        -score_hora.get(p.id, 0),
+        -score_anio.get(p.id, 0),
+        (p.nombre or "").lower(),
+    ))
     busqueda = []
     if q.strip():
         like = f"%{q.strip()}%"
@@ -1187,8 +1213,13 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
         if cel:
             qq = db.query(Persona).filter((Persona.nombre.ilike(like)) | (Persona.celular == cel))
         busqueda = qq.order_by(Persona.nombre).limit(20).all()
+    cfg = obtener_config(db)
+    domingos = {r.fecha for r in db.query(DomingoPunto).all()}
+    apagado = punto_apagado_para(cfg, domingos, delg, dias)
     por_dia = []
     for d in dias:
+        if not dia_permitido(cfg, d, domingos, delg):
+            continue
         slots = []
         for h in horarios_del_dia(d):
             gente = []
@@ -1208,6 +1239,7 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
     dias_vista = por_dia if modo != "foto" else [x for x in por_dia if x["tiene"]]
     alertas = db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.leida == False).order_by(Alerta.id.desc()).all()
     request.session["n_alertas"] = len(alertas)
+    _rank, puesto = ranking_anio(db)
     return templates.TemplateResponse(request, "programacion.html", {
         "user": user, "delg": delg, "es_fimlm": delg == "fimlm",
         "lunes": lunes, "domingo": dias[-1], "dias": dias_vista, "todos_dias": por_dia,
@@ -1216,6 +1248,8 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
         "error": error, "ok": ok, "alertas": alertas, "tutorial": not request.session.get("tut_prog"),
         "confirmar": confirmar, "hl": hl,
         "busqueda_vacia": bool(q.strip()) and not busqueda,
+        "punto_apagado": apagado,
+        "puesto": puesto,
     })
 
 
@@ -1247,6 +1281,10 @@ async def programacion_asignar(
         return RedirectResponse(url="/programacion?error=Solo+se+edita+la+semana+vigente", status_code=303)
     if horario not in horarios_del_dia(f):
         return RedirectResponse(url="/programacion?error=Horario+no+válido+ese+día", status_code=303)
+    cfg = obtener_config(db)
+    domingos = {r.fecha for r in db.query(DomingoPunto).all()}
+    if not dia_permitido(cfg, f, domingos, delg):
+        return RedirectResponse(url="/programacion?error=Ese+día+no+está+habilitado+para+tu+delegación", status_code=303)
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
     if not persona:
         return RedirectResponse(url="/programacion?error=Persona+no+encontrada", status_code=303)
@@ -1449,3 +1487,132 @@ async def alertas_leer(request: Request, db: Session = Depends(get_db)):
     db.commit()
     request.session["n_alertas"] = 0
     return RedirectResponse(url="/dashboard", status_code=303)
+
+
+
+@app.get("/config-punto", response_class=HTMLResponse)
+async def config_punto_ver(request: Request, db: Session = Depends(get_db), ok: str = "", error: str = ""):
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
+    cfg = obtener_config(db)
+    doms = db.query(DomingoPunto).order_by(DomingoPunto.fecha).all()
+    return templates.TemplateResponse(request, "config_punto.html", {
+        "user": user, "cfg": cfg, "domingos": doms, "ok": ok, "error": error,
+    })
+
+
+@app.post("/config-punto")
+async def config_punto_guardar(
+    request: Request, db: Session = Depends(get_db),
+    vigencia_inicio: str = Form(""),
+    vigencia_fin: str = Form(""),
+    lun: str = Form(""),
+    mar: str = Form(""),
+    mie: str = Form(""),
+    jue: str = Form(""),
+    vie: str = Form(""),
+    sab: str = Form(""),
+    confirmar_bajas: str = Form(""),
+):
+    from datetime import datetime as dt
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
+    cfg = obtener_config(db)
+    nuevos = {
+        "lun": lun == "on", "mar": mar == "on", "mie": mie == "on",
+        "jue": jue == "on", "vie": vie == "on", "sab": sab == "on",
+    }
+    nombres = {"lun": "lunes", "mar": "martes", "mie": "miércoles", "jue": "jueves", "vie": "viernes", "sab": "sábado"}
+    wd_map = {"lun": 0, "mar": 1, "mie": 2, "jue": 3, "vie": 4, "sab": 5}
+    apagados = [k for k, v in nuevos.items() if getattr(cfg, k) and not v]
+    lunes_ok = semana_vigente()
+    afectados = []
+    if apagados:
+        wds = {wd_map[k] for k in apagados}
+        turnos = db.query(Turno).filter(Turno.semana_lunes >= lunes_ok).all()
+        afectados = [t for t in turnos if t.fecha.weekday() in wds]
+    if afectados and confirmar_bajas != "si":
+        dias = ", ".join(nombres[k] for k in apagados)
+        return RedirectResponse(
+            url="/config-punto?error=" + (
+                f"Hay+{len(afectados)}+persona(s)+en+{dias.replace(' ', '+')}+de+la+semana+abierta.+Si+guardas,+se+quitan.+Vuelve+a+guardar+marcando+la+casilla+de+confirmación."
+            ).replace(" ", "+"),
+            status_code=303,
+        )
+    try:
+        cfg.vigencia_inicio = dt.strptime(vigencia_inicio, "%Y-%m-%d").date() if vigencia_inicio else None
+        cfg.vigencia_fin = dt.strptime(vigencia_fin, "%Y-%m-%d").date() if vigencia_fin else None
+    except ValueError:
+        return RedirectResponse(url="/config-punto?error=Fechas+inválidas", status_code=303)
+    for k, v in nuevos.items():
+        setattr(cfg, k, v)
+    for tno in afectados:
+        db.delete(tno)
+    db.commit()
+    extra = f". Se quitaron {len(afectados)} asignaciones." if afectados else ""
+    return RedirectResponse(url="/config-punto?ok=Guardado" + extra.replace(" ", "+"), status_code=303)
+
+
+@app.post("/config-punto/domingo")
+async def config_punto_domingo(request: Request, db: Session = Depends(get_db), fecha: str = Form(...)):
+    from datetime import datetime as dt
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
+    try:
+        f = dt.strptime(fecha, "%Y-%m-%d").date()
+    except ValueError:
+        return RedirectResponse(url="/config-punto?error=Fecha+inválida", status_code=303)
+    if f.weekday() != 6:
+        return RedirectResponse(url="/config-punto?error=Esa+fecha+no+es+domingo", status_code=303)
+    if not db.query(DomingoPunto).filter(DomingoPunto.fecha == f).first():
+        db.add(DomingoPunto(fecha=f))
+        db.commit()
+        from .punto import MESES_ES, NOMBRES_DIA
+        from .auth import DELEGACIONES
+        tipo = f"domingo-{f.isoformat()}"
+        texto = (
+            f"Atención equipos: el domingo {f.day} de {MESES_ES[f.month-1]} "
+            "el punto de información estará activo. Convocá a la mayor cantidad "
+            "de colaboradores de tu delegación; contamos con su apoyo."
+        )
+        for delg in DELEGACIONES:
+            if delg == "fimlm":
+                continue
+            if not db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.tipo == tipo).first():
+                db.add(Alerta(para_delegacion=delg, tipo=tipo, texto=texto, leida=False))
+        db.commit()
+    return RedirectResponse(url="/config-punto?ok=Domingo+habilitado", status_code=303)
+
+
+@app.post("/config-punto/domingo/{did}/quitar")
+async def config_punto_domingo_quitar(request: Request, did: int, db: Session = Depends(get_db)):
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
+    row = db.query(DomingoPunto).filter(DomingoPunto.id == did).first()
+    if row:
+        lunes_ok = semana_vigente()
+        for tno in db.query(Turno).filter(Turno.fecha == row.fecha, Turno.semana_lunes >= lunes_ok).all():
+            db.delete(tno)
+        db.delete(row)
+        db.commit()
+    return RedirectResponse(url="/config-punto?ok=Domingo+quitado", status_code=303)
+
+
+
+@app.get("/podio", response_class=HTMLResponse)
+async def podio_ver(request: Request, db: Session = Depends(get_db), persona_id: int = 0):
+    user, redir = require_com_user(request)
+    if redir:
+        return redir
+    ranking, _ = ranking_anio(db)
+    detalle = next((r for r in ranking if r["persona"].id == persona_id), None)
+    return templates.TemplateResponse(request, "podio.html", {
+        "user": user,
+        "ranking": ranking,
+        "detalle": detalle,
+        "anio": semana_vigente().year,
+    })

@@ -289,3 +289,44 @@ th.sticky-actions, td.sticky-actions {
   padding: 1rem;
   color: var(--text);
 }
+
+.podio-top {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 0.75rem;
+  align-items: end;
+}
+.podio-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1rem 0.5rem;
+  border-radius: 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+.podio-primero { padding-top: 1.6rem; padding-bottom: 1.4rem; transform: translateY(-8px); }
+.podio-medalla { font-size: 1.5rem; font-weight: 800; }
+.podio-nombre { font-weight: 700; margin: 0.35rem 0; }
+.podio-n { font-size: 0.75rem; opacity: 0.85; }
+.metal-oro, .podio-step.oro {
+  background: linear-gradient(180deg, #fff6cc, #e8c547);
+  color: #5b4300;
+  box-shadow: 0 8px 24px rgba(212, 160, 23, 0.35);
+}
+.metal-plata, .podio-step.plata {
+  background: linear-gradient(180deg, #f4f7fa, #b7c0c9);
+  color: #2c333a;
+  box-shadow: 0 6px 18px rgba(80, 90, 100, 0.25);
+}
+.metal-bronce, .podio-step.bronce {
+  background: linear-gradient(180deg, #f6d3b0, #c67b3a);
+  color: #4a2a10;
+  box-shadow: 0 6px 18px rgba(150, 80, 20, 0.28);
+}
+.tarjeta-metal { border-radius: 0.75rem; padding: 0.15rem; }
+@media (max-width: 640px) {
+  .podio-top { grid-template-columns: 1fr; }
+  .podio-primero { transform: none; }
+}

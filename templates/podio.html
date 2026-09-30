@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Podio - Sintonía</title>
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    {% set activo = "podio" %}
+    {% include "_nav.html" %}
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        <p class="text-center text-xs tracking-[0.25em] uppercase mb-1" style="color:var(--muted)">Colaboradores del año {{ anio }}</p>
+        <h1 class="text-3xl font-bold text-center mb-2">Podio Sintonía</h1>
+        <p class="text-center text-sm mb-8" style="color:var(--muted)">Turnos de semanas ya cerradas. Toca un nombre para ver en qué delegaciones apoyó.</p>
+
+        {% set top = ranking[:3] %}
+        <div class="podio-top mb-10">
+            {% for r in ranking if r.puesto == 2 %}
+            <a href="/podio?persona_id={{ r.persona.id }}" class="podio-step plata">
+                <span class="podio-medalla">2</span>
+                <span class="podio-nombre">{{ r.persona.nombre }}</span>
+                <span class="podio-n">{{ r.total }} turnos</span>
+            </a>
+            {% endfor %}
+            {% for r in ranking if r.puesto == 1 %}
+            <a href="/podio?persona_id={{ r.persona.id }}" class="podio-step oro podio-primero">
+                <span class="podio-medalla">1</span>
+                <span class="podio-nombre">{{ r.persona.nombre }}</span>
+                <span class="podio-n">{{ r.total }} turnos</span>
+            </a>
+            {% endfor %}
+            {% for r in ranking if r.puesto == 3 %}
+            <a href="/podio?persona_id={{ r.persona.id }}" class="podio-step bronce">
+                <span class="podio-medalla">3</span>
+                <span class="podio-nombre">{{ r.persona.nombre }}</span>
+                <span class="podio-n">{{ r.total }} turnos</span>
+            </a>
+            {% endfor %}
+        </div>
+
+        {% if detalle %}
+        <div class="bg-white rounded-xl shadow p-5 mb-8">
+            <p class="font-semibold text-lg">{{ detalle.persona.nombre }}</p>
+            <p class="text-sm mb-3" style="color:var(--muted)">Puesto {{ detalle.puesto }} · {{ detalle.total }} turnos este año</p>
+            {% set mx = detalle.por.values()|max if detalle.por else 1 %}
+            {% for delg, n in detalle.por.items()|sort %}
+            <p class="text-xs mb-1">{{ delg }}</p>
+            <div class="h-3 rounded-full mb-3" style="background:var(--border)">
+                <div class="h-3 rounded-full" style="width:{{ (n/mx*100)|int }}%;background:linear-gradient(90deg,#f59e0b,#eab308);"></div>
+            </div>
+            <p class="text-xs mb-3" style="color:var(--muted)">{{ n }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <ol class="space-y-2">
+            {% for r in ranking %}
+            <li>
+                <a href="/podio?persona_id={{ r.persona.id }}"
+                   class="flex items-center gap-3 rounded-xl px-4 py-3 metal-{{ 'oro' if r.puesto <= 10 else ('plata' if r.puesto <= 20 else 'bronce') }}">
+                    <span class="w-8 text-center font-bold">{{ r.puesto }}</span>
+                    <span class="flex-1 font-medium">{{ r.persona.nombre }}</span>
+                    <span class="text-sm opacity-80">{{ r.total }}</span>
+                </a>
+            </li>
+            {% else %}
+            <p class="text-sm text-center" style="color:var(--muted)">Aún no hay semanas cerradas con turnos este año.</p>
+            {% endfor %}
+        </ol>
+    </main>
+</body>
+</html>

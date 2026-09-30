@@ -76,3 +76,24 @@ class Alerta(Base):
     texto = Column(String(400), nullable=False)
     leida = Column(Boolean, default=False, nullable=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ConfigPunto(Base):
+    __tablename__ = "config_punto"
+
+    id = Column(Integer, primary_key=True)
+    vigencia_inicio = Column(Date, nullable=True)
+    vigencia_fin = Column(Date, nullable=True)
+    lun = Column(Boolean, default=True, nullable=False)
+    mar = Column(Boolean, default=True, nullable=False)
+    mie = Column(Boolean, default=True, nullable=False)
+    jue = Column(Boolean, default=True, nullable=False)
+    vie = Column(Boolean, default=True, nullable=False)
+    sab = Column(Boolean, default=True, nullable=False)
+
+
+class DomingoPunto(Base):
+    __tablename__ = "domingos_punto"
+
+    id = Column(Integer, primary_key=True)
+    fecha = Column(Date, unique=True, nullable=False)
