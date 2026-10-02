@@ -29,8 +29,8 @@
             <div>
                 <label class="block text-sm mb-1">Delegación (esto define los permisos)</label>
                 <select name="delegacion" class="w-full px-3 py-2 border rounded-md">
-                    {% for d in delegaciones %}
-                    <option value="{{ d }}">{{ d }}</option>
+                    {% for d in delegaciones if d != 'comunicaciones' %}
+                    <option value="{{ d }}">{% if d == 'sonido' %}sonido (templo){% else %}{{ d }}{% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -42,13 +42,9 @@
                 <p class="font-medium">{{ c.usuario }}</p>
                 <p class="text-sm" style="color:var(--muted)">{{ c.delegacion }} · {% if c.activo %}Activo{% else %}Inactivo{% endif %}</p>
                 <div class="flex flex-wrap gap-2 mt-3">
-                    {% if c.activo and c.usuario != user and c.delegacion != 'comunicaciones' %}
-                    <form method="post" action="/usuarios/{{ c.id }}/desactivar" onsubmit="return confirm('¿Desactivar a {{ c.usuario }}?');">
-                        <button class="btn-danger">Desactivar</button>
-                    </form>
-                    {% elif not c.activo %}
-                    <form method="post" action="/usuarios/{{ c.id }}/activar">
-                        <button class="btn-ghost">Activar</button>
+                    {% if c.usuario != user %}
+                    <form method="post" action="/usuarios/{{ c.id }}/eliminar" onsubmit="return confirm('¿Eliminar a {{ c.usuario }}? No se puede deshacer.');">
+                        <button class="btn-danger">Eliminar</button>
                     </form>
                     {% endif %}
                     <form method="post" action="/usuarios/{{ c.id }}/clave" class="flex gap-2 items-center">

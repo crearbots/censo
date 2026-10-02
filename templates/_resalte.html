@@ -1,0 +1,13 @@
+<script>
+(function(){
+  var hl = new URLSearchParams(location.search).get("hl");
+  if (!hl) return;
+  var el = document.getElementById("slot-" + hl);
+  if (!el) return;
+  el.scrollIntoView({behavior:"smooth", block:"center"});
+  el.style.transition = "box-shadow 0.3s, background 0.3s";
+  el.style.background = "rgba(251,191,36,0.35)";
+  el.style.boxShadow = "0 0 0 3px rgba(251,191,36,0.8)";
+  setTimeout(function(){ el.style.background=""; el.style.boxShadow=""; }, 2200);
+})();
+</script>

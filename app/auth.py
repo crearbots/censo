@@ -13,6 +13,7 @@ DELEGACIONES = (
     "juventudes",
     "electoral",
     "fimlm",
+    "sonido",
 )
 
 COM_ONLY_PREFIXES = (
@@ -59,6 +60,17 @@ def create_default_user(db: Session):
     if not verify_password(DEFAULT_PASSWORD, user.password_hash):
         user.password_hash = hash_password(DEFAULT_PASSWORD)
         print(f"Contraseña actualizada para: {DEFAULT_USER}")
+    principal = db.query(Usuario).filter(Usuario.usuario == "comunicaciones").first()
+    cuentas_com = db.query(Usuario).filter(Usuario.delegacion == "comunicaciones").all()
+    if principal:
+        extras = [c for c in cuentas_com if c.usuario != "comunicaciones"]
+    elif len(cuentas_com) > 1:
+        extras = [c for c in cuentas_com if c.usuario == "admin"]
+    else:
+        extras = []
+    for extra in extras:
+        db.delete(extra)
+        print(f"Usuario de Comunicaciones duplicado retirado: {extra.usuario}")
     db.commit()
 
 

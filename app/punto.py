@@ -93,8 +93,8 @@ def generar_alertas_festivo(db) -> None:
         tipo = f"festivo-{d.isoformat()}"
         dia_txt = f"{NOMBRES_DIA[d.weekday()].lower()} {d.day} de {MESES_ES[d.month-1]}"
         texto = (
-            f"El {dia_txt} es festivo. Recuerda avisar a tus colaboradores: "
-            "el punto atiende a las 8:00 a.m. y a las 5:00 p.m."
+            f"El {dia_txt} es festivo. Avisa a tus colaboradores: "
+            "ese día el horario es 8:00 a.m. y 5:00 p.m."
         )
         for delg in DELEGACIONES:
             existe = db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.tipo == tipo).first()

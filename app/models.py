@@ -64,6 +64,7 @@ class Turno(Base):
     horario = Column(String(5), nullable=False)
     delegacion = Column(String(40), nullable=False)
     semana_lunes = Column(Date, nullable=False, index=True)
+    rol = Column(String(20), nullable=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
 
 

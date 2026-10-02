@@ -53,6 +53,16 @@ jinja_env = Environment(
 )
 # Asegurar filtro tojson
 jinja_env.filters["tojson"] = lambda v: htmlsafe_json_dumps(v)
+_MESES = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+
+def _fecha_dia(d):
+    return f"{d.day:02d}/{_MESES[d.month - 1]}"
+
+def _rango_semana(lunes, domingo):
+    return f"{_fecha_dia(lunes)} – {domingo.day:02d}/{_MESES[domingo.month - 1]}/{domingo.year}"
+
+jinja_env.filters["fecha_dia"] = _fecha_dia
+jinja_env.filters["rango_semana"] = _rango_semana
 templates = Jinja2Templates(env=jinja_env)
 
 
@@ -88,6 +98,11 @@ def on_startup():
                     conn.execute(sql_text("ALTER TABLE usuarios ADD COLUMN activo BOOLEAN DEFAULT 1"))
                     conn.commit()
                     print("Columna usuarios.activo agregada")
+            tcols = [r[1] for r in conn.execute(sql_text("PRAGMA table_info(turnos)")).fetchall()]
+            if tcols and "rol" not in tcols:
+                conn.execute(sql_text("ALTER TABLE turnos ADD COLUMN rol VARCHAR(20)"))
+                conn.commit()
+                print("Columna turnos.rol agregada")
     except Exception as e:
         print(f"Migración: {e}")
 
@@ -990,8 +1005,7 @@ async def editar_persona_submit(
         persona.motivo_detalle = None
     db.commit()
 
-    destino = "/personas?estado=no_instalada" if estado == "No instalada" else "/personas?estado=instalada"
-    return RedirectResponse(url=destino, status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/personas?estado=todos", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/persona/{persona_id}/eliminar")
@@ -999,9 +1013,17 @@ async def eliminar_persona(request: Request, persona_id: int, db: Session = Depe
     user, redir = require_com_user(request)
     if redir:
         return redir
-    if persona:
+    persona = db.query(Persona).filter(Persona.id == persona_id).first()
+    if not persona:
+        return RedirectResponse(url="/personas?estado=todos&error=Esa+persona+ya+no+existe", status_code=status.HTTP_303_SEE_OTHER)
+    try:
+        for turno in db.query(Turno).filter(Turno.persona_id == persona.id).all():
+            db.delete(turno)
         db.delete(persona)
         db.commit()
+    except Exception:
+        db.rollback()
+        return RedirectResponse(url="/personas?estado=todos&error=No+se+pudo+eliminar.+Intenta+de+nuevo", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(url="/personas?estado=todos", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -1176,11 +1198,87 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
     from datetime import datetime as dt
     from .processing import normalizar_celular
     delg = _delegacion(request)
+    if delg == "sonido":
+        from .processing import normalizar_celular
+        generar_alertas_festivo(db)
+        lunes = semana_vigente()
+        dias = dias_semana(lunes)
+        turnos = db.query(Turno).filter(Turno.delegacion == "sonido", Turno.semana_lunes == lunes).all()
+        personas_map = {p.id: p for p in db.query(Persona).all()} if turnos else {}
+        ocupado = {(t.fecha, t.horario, t.rol or "sonido"): t for t in turnos}
+        filas = []
+        for d in dias:
+            festivo = es_festivo(d) and d.weekday() < 5
+            roles = ["sonido", "camara"] if d.weekday() in (2, 6) else ["sonido"]
+            slots = []
+            for h in horarios_del_dia(d):
+                cups = []
+                for rol in roles:
+                    t = ocupado.get((d, h, rol))
+                    per = personas_map.get(t.persona_id) if t else None
+                    cups.append({
+                        "rol": rol,
+                        "rol_txt": "Cámara" if rol == "camara" else "Sonido",
+                        "turno": t,
+                        "persona": per,
+                    })
+                slots.append({"horario": h, "etiqueta": etiqueta_horario(h), "roles": cups})
+            filas.append({
+                "fecha": d,
+                "dia": NOMBRES_DIA[d.weekday()],
+                "festivo": festivo,
+                "slots": slots,
+            })
+        busqueda = []
+        rol_sel = request.query_params.get("rol", "")
+        editando = (modo or "editar") != "foto"
+        if not editando:
+            fecha_sel = ""
+            horario_sel = ""
+            rol_sel = ""
+            q = ""
+        if editando and q.strip():
+            like = f"%{q.strip()}%"
+            cel = normalizar_celular(q)
+            qq = db.query(Persona).filter(Persona.nombre.ilike(like))
+            if cel:
+                qq = db.query(Persona).filter((Persona.nombre.ilike(like)) | (Persona.celular == cel))
+            busqueda = qq.order_by(Persona.nombre).limit(20).all()
+        ids_mios = {t.persona_id for t in db.query(Turno).filter(Turno.delegacion == "sonido").all()}
+        mis_cols = db.query(Persona).filter(Persona.id.in_(ids_mios)).all() if ids_mios else []
+        cerrados = db.query(Turno).filter(Turno.delegacion == "sonido", Turno.semana_lunes < lunes).all()
+        anio = lunes.year
+        score_hora = {}
+        score_anio = {}
+        wd_sel = None
+        try:
+            if fecha_sel and horario_sel:
+                wd_sel = dt.strptime(fecha_sel, "%Y-%m-%d").date().weekday()
+        except ValueError:
+            wd_sel = None
+        for ct in cerrados:
+            if ct.fecha.year == anio:
+                score_anio[ct.persona_id] = score_anio.get(ct.persona_id, 0) + 1
+            if wd_sel is not None and ct.fecha.weekday() == wd_sel and ct.horario == horario_sel:
+                score_hora[ct.persona_id] = score_hora.get(ct.persona_id, 0) + 1
+        mis_cols.sort(key=lambda p: (-score_hora.get(p.id, 0), -score_anio.get(p.id, 0), (p.nombre or "").lower()))
+        alertas = db.query(Alerta).filter(Alerta.para_delegacion == delg, Alerta.leida == False).order_by(Alerta.id.desc()).all()
+        request.session["n_alertas"] = len(alertas)
+        _rank, puesto = ranking_anio(db)
+        return templates.TemplateResponse(request, "programacion_sonido.html", {
+            "user": user, "alertas": alertas,
+            "lunes": lunes, "domingo": dias[-1], "filas": filas,
+            "q": q, "busqueda": busqueda, "mis_cols": mis_cols, "puesto": puesto,
+            "fecha_sel": fecha_sel, "horario_sel": horario_sel, "rol_sel": rol_sel,
+            "modo": "foto" if not editando else "editar",
+            "error": error, "ok": ok,
+            "busqueda_vacia": bool(q.strip()) and not busqueda,
+        })
     generar_alertas_festivo(db)
     generar_alertas_domingo(db)
     lunes = semana_vigente()
     dias = dias_semana(lunes)
-    turnos = db.query(Turno).filter(Turno.semana_lunes == lunes).all()
+    turnos = db.query(Turno).filter(Turno.semana_lunes == lunes, Turno.delegacion != "sonido").all()
     personas_map = {p.id: p for p in db.query(Persona).all()} if turnos else {}
     ids_mios = {t.persona_id for t in db.query(Turno).filter(Turno.delegacion == delg).all()}
     mis_cols = db.query(Persona).filter(Persona.id.in_(ids_mios)).all() if ids_mios else []
@@ -1228,7 +1326,11 @@ async def programacion_ver(request: Request, db: Session = Depends(get_db),
                     per = personas_map.get(t.persona_id)
                     if per:
                         gente.append({"turno": t, "persona": per, "mio": t.delegacion == delg})
-            slots.append({"horario": h, "etiqueta": etiqueta_horario(h), "gente": gente})
+            reservado = any(g["turno"].delegacion == "fimlm" for g in gente)
+            slots.append({
+                "horario": h, "etiqueta": etiqueta_horario(h), "gente": gente,
+                "reservado_fimlm": reservado and delg != "fimlm",
+            })
         por_dia.append({
             "fecha": d,
             "nombre": NOMBRES_DIA[d.weekday()],
@@ -1270,6 +1372,8 @@ async def programacion_asignar(
     user = require_login(request)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    if _delegacion(request) == "sonido":
+        return RedirectResponse(url="/programacion", status_code=status.HTTP_303_SEE_OTHER)
     delg = _delegacion(request)
     try:
         f = dt.strptime(fecha, "%Y-%m-%d").date()
@@ -1285,17 +1389,34 @@ async def programacion_asignar(
     domingos = {r.fecha for r in db.query(DomingoPunto).all()}
     if not dia_permitido(cfg, f, domingos, delg):
         return RedirectResponse(url="/programacion?error=Ese+día+no+está+habilitado+para+tu+delegación", status_code=303)
+    if delg != "fimlm" and db.query(Turno).filter(
+        Turno.fecha == f, Turno.horario == horario, Turno.delegacion == "fimlm"
+    ).first():
+        return RedirectResponse(
+            url=f"/programacion?modo=editar&error=Ese+horario+ya+está+reservado+por+FIMLM&fecha_sel={fecha}&horario_sel={horario}",
+            status_code=303,
+        )
     persona = db.query(Persona).filter(Persona.id == persona_id).first()
     if not persona:
         return RedirectResponse(url="/programacion?error=Persona+no+encontrada", status_code=303)
     ya = db.query(Turno).filter(Turno.persona_id == persona_id, Turno.fecha == f, Turno.horario == horario).first()
     if ya:
-        return RedirectResponse(url="/programacion?error=Esa+persona+ya+está+en+ese+horario", status_code=303)
+        equipo = _nombre_equipo(ya.delegacion)
+        from urllib.parse import quote
+        aviso = quote(f"{persona.nombre} ya está a esa hora en {equipo}. No se le quita ese turno.")
+        return RedirectResponse(
+            url=f"/programacion?modo=editar&fecha_sel={fecha}&horario_sel={horario}&error={aviso}",
+            status_code=303,
+        )
     if delg != "fimlm":
-        n = db.query(Turno).filter(Turno.persona_id == persona_id, Turno.semana_lunes == lunes).count()
+        n = db.query(Turno).filter(
+            Turno.persona_id == persona_id, Turno.semana_lunes == lunes, Turno.delegacion != "sonido"
+        ).count()
         if n >= 2:
             return RedirectResponse(url="/programacion?error=No+se+puede+programar+a+esta+persona:+ya+tiene+el+máximo+de+2+turnos+esta+semana", status_code=303)
-    otros = db.query(Turno).filter(Turno.fecha == f, Turno.horario == horario, Turno.delegacion != "fimlm").all() if delg == "fimlm" else []
+    otros = db.query(Turno).filter(
+        Turno.fecha == f, Turno.horario == horario, Turno.delegacion != "fimlm", Turno.delegacion != "sonido"
+    ).all() if delg == "fimlm" else []
     if delg == "fimlm" and otros and confirmar_fimlm != "si":
         nombres = []
         for t in otros:
@@ -1341,6 +1462,133 @@ async def programacion_quitar(request: Request, db: Session = Depends(get_db), t
     db.delete(turno)
     db.commit()
     return RedirectResponse(url=f"/programacion?modo=editar&hl={hl}", status_code=303)
+
+
+def _nombre_equipo(delegacion: str) -> str:
+    return {
+        "comunicaciones": "Comunicaciones",
+        "politica": "Política",
+        "juventudes": "Juventudes",
+        "electoral": "Electoral",
+        "fimlm": "FIMLM",
+        "sonido": "Sonido",
+    }.get(delegacion or "", delegacion or "otro equipo")
+
+
+def _sonido_ok(request: Request):
+    user = require_login(request)
+    if not user:
+        return None, RedirectResponse(url="/login", status_code=303)
+    if _delegacion(request) != "sonido":
+        return None, RedirectResponse(url="/programacion", status_code=303)
+    return user, None
+
+
+@app.post("/programacion/sonido/asignar")
+async def sonido_asignar(
+    request: Request, db: Session = Depends(get_db),
+    persona_id: int = Form(...), fecha: str = Form(...), horario: str = Form(...), rol: str = Form(...),
+    modo: str = Form(""),
+):
+    from datetime import datetime as dt, timedelta as td
+    user, redir = _sonido_ok(request)
+    if redir:
+        return redir
+    if modo != "editar":
+        return RedirectResponse(url="/programacion?modo=foto&error=La+foto+no+se+edita.+Pasa+a+Armar+semana", status_code=303)
+    rol = (rol or "").strip().lower()
+    try:
+        f = dt.strptime(fecha, "%Y-%m-%d").date()
+    except ValueError:
+        return RedirectResponse(url="/programacion?error=Fecha+inválida", status_code=303)
+    lunes = semana_vigente()
+    if not (lunes <= f <= lunes + td(days=6)):
+        return RedirectResponse(url="/programacion?error=Solo+se+edita+la+semana+vigente", status_code=303)
+    if horario not in horarios_del_dia(f):
+        return RedirectResponse(url="/programacion?error=Horario+no+válido+ese+día", status_code=303)
+    if rol not in ("sonido", "camara") or (rol == "camara" and f.weekday() not in (2, 6)):
+        return RedirectResponse(url="/programacion?error=Ese+rol+no+aplica+en+ese+día", status_code=303)
+    persona = db.query(Persona).filter(Persona.id == persona_id).first()
+    if not persona:
+        return RedirectResponse(url="/programacion?error=Persona+no+encontrada", status_code=303)
+    cupo = db.query(Turno).filter(
+        Turno.delegacion == "sonido", Turno.fecha == f, Turno.horario == horario, Turno.rol == rol
+    ).first()
+    if cupo:
+        return RedirectResponse(
+            url=f"/programacion?modo=editar&error=Ese+cupo+ya+está+lleno.+Quita+a+quien+está+para+cambiarlo&fecha_sel={fecha}&horario_sel={horario}&rol={rol}",
+            status_code=303,
+        )
+    misma_hora = db.query(Turno).filter(
+        Turno.persona_id == persona_id, Turno.fecha == f, Turno.horario == horario
+    ).first()
+    if misma_hora:
+        equipo = _nombre_equipo(misma_hora.delegacion)
+        from urllib.parse import quote
+        aviso = quote(f"{persona.nombre} ya está a esa hora en {equipo}. No se le quita ese turno.")
+        return RedirectResponse(
+            url=f"/programacion?modo=editar&error={aviso}&fecha_sel={fecha}&horario_sel={horario}&rol={rol}",
+            status_code=303,
+        )
+    db.add(Turno(
+        persona_id=persona_id, fecha=f, horario=horario, delegacion="sonido",
+        semana_lunes=lunes, rol=rol,
+    ))
+    db.commit()
+    return RedirectResponse(url=f"/programacion?modo=editar&ok=Listo&hl={fecha}-{horario}-{rol}", status_code=303)
+
+
+@app.post("/programacion/sonido/quitar")
+async def sonido_quitar(
+    request: Request, db: Session = Depends(get_db),
+    turno_id: int = Form(...), modo: str = Form(""),
+):
+    user, redir = _sonido_ok(request)
+    if redir:
+        return redir
+    if modo != "editar":
+        return RedirectResponse(url="/programacion?modo=foto&error=La+foto+no+se+edita.+Pasa+a+Armar+semana", status_code=303)
+    turno = db.query(Turno).filter(Turno.id == turno_id, Turno.delegacion == "sonido").first()
+    if not turno:
+        return RedirectResponse(url="/programacion?error=Turno+no+existe", status_code=303)
+    hl = f"{turno.fecha.isoformat()}-{turno.horario}-{turno.rol or 'sonido'}"
+    db.delete(turno)
+    db.commit()
+    return RedirectResponse(url=f"/programacion?modo=editar&ok=Quitado&hl={hl}", status_code=303)
+
+
+@app.post("/programacion/sonido/alta")
+async def sonido_alta(
+    request: Request, db: Session = Depends(get_db),
+    nombre: str = Form(...), celular: str = Form(...),
+    fecha: str = Form(...), horario: str = Form(...), rol: str = Form(...), modo: str = Form(""),
+):
+    from .processing import normalizar_celular, normalizar_nombre
+    user, redir = _sonido_ok(request)
+    if redir:
+        return redir
+    if modo != "editar":
+        return RedirectResponse(url="/programacion?modo=foto&error=La+foto+no+se+edita.+Pasa+a+Armar+semana", status_code=303)
+    cel = normalizar_celular(celular)
+    nom = normalizar_nombre(nombre)
+    if not cel or not nom:
+        return RedirectResponse(
+            url=f"/programacion?error=Nombre+y+celular+de+10+dígitos&fecha_sel={fecha}&horario_sel={horario}&rol={rol}",
+            status_code=303,
+        )
+    per = db.query(Persona).filter(Persona.celular == cel).first()
+    if not per:
+        per = Persona(nombre=nom, celular=cel, estado="No instalada", pendiente_revision=False, fuente_ultima="Sonido")
+        db.add(per)
+        db.commit()
+        db.refresh(per)
+        db.add(Alerta(
+            para_delegacion="comunicaciones", tipo="alta_nueva",
+            texto=f"Persona nueva registrada desde Sonido: {nom} ({cel}). Revisar si ya tiene la App.",
+            leida=False,
+        ))
+        db.commit()
+    return await sonido_asignar(request, db, persona_id=per.id, fecha=fecha, horario=horario, rol=rol, modo="editar")
 
 
 @app.post("/programacion/alta")
@@ -1418,6 +1666,8 @@ async def usuarios_crear(
         return RedirectResponse(url="/usuarios?error=Usuario+y+contraseña+son+obligatorios", status_code=status.HTTP_303_SEE_OTHER)
     if delegacion not in DELEGACIONES:
         return RedirectResponse(url="/usuarios?error=Delegación+no+válida", status_code=status.HTTP_303_SEE_OTHER)
+    if delegacion == "comunicaciones":
+        return RedirectResponse(url="/usuarios?error=Ya+existe+la+cuenta+de+Comunicaciones", status_code=status.HTTP_303_SEE_OTHER)
     if db.query(Usuario).filter(Usuario.usuario == username).first():
         return RedirectResponse(url="/usuarios?error=Ese+usuario+ya+existe", status_code=status.HTTP_303_SEE_OTHER)
     db.add(Usuario(
@@ -1428,6 +1678,27 @@ async def usuarios_crear(
     ))
     db.commit()
     return RedirectResponse(url="/usuarios?ok=Usuario+creado", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/usuarios/{usuario_id}/eliminar")
+async def usuarios_eliminar(request: Request, usuario_id: int, db: Session = Depends(get_db)):
+    user, redir = _exige_com(request)
+    if redir:
+        return redir
+    cuenta = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not cuenta:
+        return RedirectResponse(url="/usuarios?error=No+existe", status_code=status.HTTP_303_SEE_OTHER)
+    if cuenta.usuario == user:
+        return RedirectResponse(url="/usuarios?error=No+puedes+eliminar+la+cuenta+con+la+que+entraste", status_code=status.HTTP_303_SEE_OTHER)
+    if (cuenta.delegacion or "") == "comunicaciones":
+        otras = db.query(Usuario).filter(
+            Usuario.delegacion == "comunicaciones", Usuario.id != cuenta.id
+        ).count()
+        if otras < 1:
+            return RedirectResponse(url="/usuarios?error=Debe+quedar+al+menos+una+cuenta+de+Comunicaciones", status_code=status.HTTP_303_SEE_OTHER)
+    db.delete(cuenta)
+    db.commit()
+    return RedirectResponse(url="/usuarios?ok=Usuario+eliminado", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/usuarios/{usuario_id}/desactivar")
